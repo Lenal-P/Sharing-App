@@ -7,6 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "runtimeVersion": { "policy": "appVersion" },
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/6b165714-66f2-4ba5-afa5-c64023b7736f"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -36,6 +41,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6b165714-66f2-4ba5-afa5-c64023b7736f"
+      }
     },
     "plugins": [
       [

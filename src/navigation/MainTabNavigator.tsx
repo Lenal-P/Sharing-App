@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from '../config/types';
 import { HomeStackNavigator } from './HomeStackNavigator';
 import { UploadScreen } from '../screens/Main/UploadScreen';
-import { SharedScreen } from '../screens/Main/SharedScreen';
+import { SharedStackNavigator } from './SharedStackNavigator';
 import { ProfileScreen } from '../screens/Main/ProfileScreen';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../config/constants';
@@ -72,7 +72,7 @@ export const MainTabNavigator = () => {
       />
       <Tab.Screen
         name="Shared"
-        component={SharedScreen}
+        component={SharedStackNavigator}
         options={{ tabBarLabel: 'Chia sẻ' }}
       />
       <Tab.Screen

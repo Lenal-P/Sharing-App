@@ -24,6 +24,8 @@ export interface Folder {
   name: string;
   description?: string;
   coverUrl?: string;
+  iconName?: string;
+  color?: string;
   mediaCount: number;
   totalSize: number;
   isPublic: boolean;
@@ -74,9 +76,15 @@ export type MainTabParamList = {
 
 export type HomeStackParamList = {
   FolderList: undefined;
-  FolderDetail: { folder: Folder };
-  MediaViewer: { mediaItems: MediaItem[]; startIndex: number };
-  CreateFolder: undefined;
+  FolderDetail: { folderId: string };
+  MediaViewer: { mediaItems: MediaItem[]; startIndex: number; readOnly?: boolean };
+  CreateFolder: { mode?: 'create' | 'edit'; folderId?: string } | undefined;
+};
+
+export type SharedStackParamList = {
+  SharedHome: undefined;
+  SharedFolder: { folderId: string; shareCode: string };
+  SharedMediaViewer: { mediaItems: MediaItem[]; startIndex: number };
 };
 
 export interface UploadProgress {

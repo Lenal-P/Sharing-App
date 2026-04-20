@@ -8,6 +8,8 @@ declare global {
       EXPO_PUBLIC_MESSAGING_SENDER_ID?: string;
       EXPO_PUBLIC_APP_ID?: string;
       EXPO_PUBLIC_MEASUREMENT_ID?: string;
+      EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME?: string;
+      EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET?: string;
     }
   }
   

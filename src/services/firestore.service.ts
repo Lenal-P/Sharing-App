@@ -5,14 +5,41 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   deleteDoc,
   updateDoc,
-  getDoc,
-  increment
+  increment,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Folder, MediaItem } from '../config/types';
+
+const stripUndefined = <T extends Record<string, any>>(obj: T): Partial<T> => {
+  const out: Record<string, any> = {};
+  Object.keys(obj).forEach((k) => {
+    if (obj[k] !== undefined) out[k] = obj[k];
+  });
+  return out as Partial<T>;
+};
+
+// Firebase SDK retries offline/denied writes indefinitely; race every network
+// call with a deadline so the UI fails fast instead of spinning forever.
+const FIREBASE_TIMEOUT_MS = 15000;
+
+const withTimeout = <T>(promise: Promise<T>, ms = FIREBASE_TIMEOUT_MS, label = 'Firebase'): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`${label} quá hạn sau ${Math.round(ms / 1000)}s — kiểm tra mạng hoặc cấu hình Firestore/Storage`)),
+        ms
+      )
+    ),
+  ]);
+
+// File upload qua Cloudinary unsigned preset không xoá được từ client
+// (phải có API secret phía server). Khi user xoá media/thư mục, mình chỉ xoá
+// metadata Firestore; file vật lý trên Cloudinary thành orphan — không ảnh
+// hưởng chức năng, có thể dọn sau qua cron/admin API.
 
 const SHARE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const SHARE_CODE_LEN = 6;
@@ -39,34 +66,54 @@ export const FirestoreService = {
       updatedAt: now,
     };
 
-    await setDoc(folderRef, {
-      ...newFolder,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    });
+    await withTimeout(
+      setDoc(folderRef, stripUndefined({
+        ...newFolder,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      })),
+      FIREBASE_TIMEOUT_MS,
+      'Tạo thư mục'
+    );
 
-    // Cập nhật số lượng thư mục của user
     const userRef = doc(db, 'users', folder.ownerId);
-    await updateDoc(userRef, {
-      folderCount: increment(1)
-    });
+    await withTimeout(
+      updateDoc(userRef, { folderCount: increment(1) }),
+      FIREBASE_TIMEOUT_MS,
+      'Cập nhật user'
+    );
 
     return newFolder;
   },
 
+  async updateFolder(folderId: string, patch: Partial<Omit<Folder, 'id' | 'ownerId' | 'createdAt'>>): Promise<void> {
+    const folderRef = doc(db, 'folders', folderId);
+    await withTimeout(
+      updateDoc(folderRef, {
+        ...stripUndefined(patch),
+        updatedAt: new Date().toISOString(),
+      }),
+      FIREBASE_TIMEOUT_MS,
+      'Sửa thư mục'
+    );
+  },
+
   async getFoldersByUser(userId: string): Promise<Folder[]> {
     const foldersRef = collection(db, 'folders');
-    const q = query(foldersRef, where('ownerId', '==', userId), orderBy('updatedAt', 'desc'));
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => {
+    // where + orderBy đòi composite index. Lấy rồi sort client-side để tránh
+    // phải tạo index cho mỗi project (folders/user thường <100).
+    const q = query(foldersRef, where('ownerId', '==', userId));
+
+    const snapshot = await withTimeout(getDocs(q), FIREBASE_TIMEOUT_MS, 'Tải thư mục');
+    const list = snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
         ...data,
         createdAt: new Date(data.createdAt),
-        updatedAt: new Date(data.updatedAt)
+        updatedAt: new Date(data.updatedAt),
       } as Folder;
     });
+    return list.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   },
 
   async toggleFolderShare(folderId: string, makePublic: boolean): Promise<{ isPublic: boolean; shareCode?: string }> {
@@ -89,17 +136,62 @@ export const FirestoreService = {
   },
 
   async deleteFolder(folderId: string, userId: string): Promise<void> {
-    await deleteDoc(doc(db, 'folders', folderId));
-    
+    const mediaRef = collection(db, `folders/${folderId}/mediaItems`);
+    const snapshot = await withTimeout(getDocs(mediaRef), FIREBASE_TIMEOUT_MS, 'Tải media để xoá');
+
+    let freedBytes = 0;
+    const batch = writeBatch(db);
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data() as MediaItem;
+      freedBytes += data.fileSize || 0;
+      batch.delete(docSnap.ref);
+    }
+    batch.delete(doc(db, 'folders', folderId));
+    await withTimeout(batch.commit(), FIREBASE_TIMEOUT_MS, 'Xoá thư mục');
+
     const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      folderCount: increment(-1)
-    });
-    // Trong thực tế, cần xóa cẩn thận:
-    // 1. Lấy tất cả media của thư mục này
-    // 2. Xóa các file vật lý trên Storage
-    // 3. Xóa các document MediaItem trên Firestore
-    // Cần Firebase Cloud Functions để đảm bảo an toàn & không rò rỉ bộ nhớ
+    await withTimeout(
+      updateDoc(userRef, {
+        folderCount: increment(-1),
+        storageUsed: increment(-freedBytes),
+      }),
+      FIREBASE_TIMEOUT_MS,
+      'Cập nhật user'
+    );
+  },
+
+  async deleteMediaItem(item: MediaItem, userId: string): Promise<void> {
+    const itemRef = doc(db, `folders/${item.folderId}/mediaItems/${item.id}`);
+    await withTimeout(deleteDoc(itemRef), FIREBASE_TIMEOUT_MS, 'Xoá media');
+
+    const folderRef = doc(db, 'folders', item.folderId);
+    await withTimeout(
+      updateDoc(folderRef, {
+        mediaCount: increment(-1),
+        totalSize: increment(-(item.fileSize || 0)),
+        updatedAt: new Date().toISOString(),
+      }),
+      FIREBASE_TIMEOUT_MS,
+      'Cập nhật thư mục'
+    );
+
+    const userRef = doc(db, 'users', userId);
+    await withTimeout(
+      updateDoc(userRef, { storageUsed: increment(-(item.fileSize || 0)) }),
+      FIREBASE_TIMEOUT_MS,
+      'Cập nhật user'
+    );
+  },
+
+  async incrementUserStorage(userId: string, deltaBytes: number): Promise<void> {
+    if (!deltaBytes) return;
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, { storageUsed: increment(deltaBytes) });
+  },
+
+  async updateUserProfile(userId: string, patch: { displayName?: string; photoURL?: string }): Promise<void> {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, stripUndefined(patch));
   },
 
   // --- Media Items ---
@@ -113,40 +205,41 @@ export const FirestoreService = {
       createdAt: now,
     };
 
-    await setDoc(itemRef, {
-      ...newItem,
-      createdAt: now.toISOString(),
-    });
+    await withTimeout(
+      setDoc(itemRef, stripUndefined({ ...newItem, createdAt: now.toISOString() })),
+      FIREBASE_TIMEOUT_MS,
+      'Lưu media'
+    );
 
-    // Cập nhật thống kê thư mục
     const folderRef = doc(db, 'folders', item.folderId);
-    await updateDoc(folderRef, {
-      mediaCount: increment(1),
-      totalSize: increment(item.fileSize),
-      updatedAt: now.toISOString(),
-    });
+    await withTimeout(
+      updateDoc(folderRef, {
+        mediaCount: increment(1),
+        totalSize: increment(item.fileSize),
+        updatedAt: now.toISOString(),
+      }),
+      FIREBASE_TIMEOUT_MS,
+      'Cập nhật thư mục'
+    );
 
     return newItem;
   },
 
   async getMediaItemsByFolder(folderId: string): Promise<MediaItem[]> {
     const mediaRef = collection(db, `folders/${folderId}/mediaItems`);
-    const q = query(mediaRef, orderBy('createdAt', 'desc'));
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => {
+
+    const snapshot = await withTimeout(getDocs(mediaRef), FIREBASE_TIMEOUT_MS, 'Tải media');
+    const list = snapshot.docs.map((doc) => {
       const data = doc.data();
-      return {
-        ...data,
-        createdAt: new Date(data.createdAt),
-      } as MediaItem;
+      return { ...data, createdAt: new Date(data.createdAt) } as MediaItem;
     });
+    return list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   },
 
   async getFolderByShareCode(code: string): Promise<Folder | null> {
     const foldersRef = collection(db, 'folders');
     const q = query(foldersRef, where('shareCode', '==', code), where('isPublic', '==', true));
-    const snapshot = await getDocs(q);
+    const snapshot = await withTimeout(getDocs(q), FIREBASE_TIMEOUT_MS, 'Tìm thư mục');
     if (snapshot.empty) return null;
     const data = snapshot.docs[0].data();
     return {

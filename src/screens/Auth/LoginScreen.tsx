@@ -66,7 +66,24 @@ export const LoginScreen = () => {
             isPassword
           />
 
-          <TouchableOpacity className="self-end mb-6 mt-2">
+          <TouchableOpacity
+            className="self-end mb-6 mt-2"
+            onPress={async () => {
+              if (!email.trim()) {
+                Alert.alert('Quên mật khẩu', 'Vui lòng nhập email ở trên trước rồi bấm lại.');
+                return;
+              }
+              try {
+                await AuthService.sendPasswordReset(email.trim());
+                Alert.alert(
+                  'Đã gửi email',
+                  `Link đặt lại mật khẩu đã được gửi tới ${email.trim()}. Kiểm tra hộp thư của bạn.`
+                );
+              } catch (err: any) {
+                Alert.alert('Lỗi', err?.message || 'Không gửi được email đặt lại');
+              }
+            }}
+          >
             <Text className="text-primary font-medium">Quên mật khẩu?</Text>
           </TouchableOpacity>
 

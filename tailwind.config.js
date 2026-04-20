@@ -4,15 +4,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#6C63FF',
-        primaryDark: '#4B44CC',
-        secondary: '#FF6584',
-        accent: '#43E97B',
-        background: '#0F0F1A',
-        surface: '#1A1A2E',
-        card: '#1E1E3A',
+        primary: '#FF6B35',
+        primaryDark: '#D85A2E',
+        primaryLight: '#FF9068',
+        secondary: '#FFA94D',
+        accent: '#2EC4B6',
+        background: '#0E0E11',
+        surface: '#17171C',
+        surfaceAlt: '#22222A',
+        card: '#1C1C22',
         text: '#FFFFFF',
-        textSecondary: '#A0A0C0',
+        textSecondary: '#B3B3B8',
+        textMuted: '#6B6B73',
+        border: '#2A2A32',
+        success: '#4ADE80',
+        warning: '#FFB84D',
+        error: '#FF6B6B',
       },
       fontFamily: {
         // can add custom fonts here later

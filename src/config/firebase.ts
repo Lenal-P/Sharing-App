@@ -1,8 +1,7 @@
 import { initializeApp } from 'firebase/app';
-// @ts-expect-error - getReactNativePersistence exists at runtime but is not in firebase/auth types
+// @ts-ignore - getReactNativePersistence is exported from firebase/auth's RN build but not in default types
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -20,6 +19,5 @@ export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage),
 });
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 
 export default app;

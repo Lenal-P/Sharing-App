@@ -4,10 +4,14 @@ import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../config/constants';
 import { FirestoreService } from '../../services/firestore.service';
-import { Folder } from '../../config/types';
+import { Folder, SharedStackParamList } from '../../config/types';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+type Nav = NativeStackNavigationProp<SharedStackParamList, 'SharedHome'>;
 
 export const SharedScreen = () => {
+  const navigation = useNavigation<Nav>();
   const [shareCode, setShareCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [foundFolder, setFoundFolder] = useState<Folder | null>(null);
@@ -104,7 +108,12 @@ export const SharedScreen = () => {
 
           <TouchableOpacity
             className="bg-primary py-3 rounded-xl items-center"
-            onPress={() => Alert.alert('Thông báo', 'Tính năng xem thư mục chia sẻ sẽ được triển khai sớm!')}
+            onPress={() =>
+              navigation.navigate('SharedFolder', {
+                folderId: foundFolder.id,
+                shareCode: foundFolder.shareCode ?? shareCode.trim().toUpperCase(),
+              })
+            }
           >
             <Text className="text-white font-bold">Xem thư mục</Text>
           </TouchableOpacity>

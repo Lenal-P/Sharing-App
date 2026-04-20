@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../../config/types';
 import { COLORS } from '../../config/constants';
@@ -21,23 +21,36 @@ import { useFolderStore } from '../../store/folderStore';
 import { FirestoreService } from '../../services/firestore.service';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'CreateFolder'>;
+type RouteType = RouteProp<HomeStackParamList, 'CreateFolder'>;
 
-const FOLDER_ICONS = ['folder', 'images', 'videocam', 'document-text', 'star', 'heart', 'briefcase', 'school'] as const;
-const FOLDER_COLORS = ['#6C63FF', '#FF6584', '#43E97B', '#FFB347', '#36D1DC', '#F953C6', '#B91D73', '#4facfe'];
+const FOLDER_ICONS = [
+  'folder', 'images', 'videocam', 'document-text',
+  'star', 'heart', 'briefcase', 'school',
+  'camera', 'musical-notes', 'airplane', 'gift',
+] as const;
+const FOLDER_COLORS = [
+  '#FF6B35', '#FFA94D', '#2EC4B6', '#4ADE80',
+  '#F97583', '#A78BFA', '#60A5FA', '#F472B6',
+];
 
 export const CreateFolderScreen = () => {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<RouteType>();
   const { user } = useAuthStore();
-  const { addFolder } = useFolderStore();
+  const { folders, addFolder, updateFolder } = useFolderStore();
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
-  const [selectedIcon, setSelectedIcon] = useState<string>('folder');
-  const [selectedColor, setSelectedColor] = useState(FOLDER_COLORS[0]);
+  const editFolderId = route.params?.mode === 'edit' ? route.params?.folderId : undefined;
+  const editTarget = editFolderId ? folders.find((f) => f.id === editFolderId) : undefined;
+  const isEdit = !!editTarget;
+
+  const [name, setName] = useState(editTarget?.name ?? '');
+  const [description, setDescription] = useState(editTarget?.description ?? '');
+  const [isPublic, setIsPublic] = useState(editTarget?.isPublic ?? false);
+  const [selectedIcon, setSelectedIcon] = useState<string>(editTarget?.iconName ?? 'folder');
+  const [selectedColor, setSelectedColor] = useState<string>(editTarget?.color ?? FOLDER_COLORS[0]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Thiếu thông tin', 'Vui lòng nhập tên thư mục');
       return;
@@ -46,19 +59,38 @@ export const CreateFolderScreen = () => {
 
     try {
       setIsLoading(true);
-      const newFolder = await FirestoreService.createFolder({
-        ownerId: user.uid,
-        name: name.trim(),
-        description: description.trim() || undefined,
-        mediaCount: 0,
-        totalSize: 0,
-        isPublic,
-        sharedWith: [],
-      });
-      addFolder(newFolder);
+      if (isEdit && editTarget) {
+        await FirestoreService.updateFolder(editTarget.id, {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          isPublic,
+          iconName: selectedIcon,
+          color: selectedColor,
+        });
+        updateFolder(editTarget.id, {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          isPublic,
+          iconName: selectedIcon,
+          color: selectedColor,
+        });
+      } else {
+        const newFolder = await FirestoreService.createFolder({
+          ownerId: user.uid,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          iconName: selectedIcon,
+          color: selectedColor,
+          mediaCount: 0,
+          totalSize: 0,
+          isPublic,
+          sharedWith: [],
+        });
+        addFolder(newFolder);
+      }
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert('Lỗi', 'Không thể tạo thư mục. Vui lòng thử lại.');
+      Alert.alert('Lỗi', error?.message || 'Không thể lưu thư mục. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -70,19 +102,20 @@ export const CreateFolderScreen = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        {/* Header */}
         <View className="flex-row items-center px-5 py-4">
           <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
-          <Text className="text-white text-xl font-bold flex-1">Tạo thư mục mới</Text>
+          <Text className="text-white text-xl font-bold flex-1">
+            {isEdit ? 'Sửa thư mục' : 'Tạo thư mục mới'}
+          </Text>
           <TouchableOpacity
-            onPress={handleCreate}
+            onPress={handleSave}
             disabled={isLoading}
             className="bg-primary px-4 py-2 rounded-xl"
           >
             <Text className="text-white font-bold">
-              {isLoading ? 'Đang tạo...' : 'Tạo'}
+              {isLoading ? 'Đang lưu...' : 'Lưu'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -101,7 +134,6 @@ export const CreateFolderScreen = () => {
             </Text>
           </View>
 
-          {/* Chọn icon */}
           <Text className="text-textSecondary text-sm mb-3 font-medium">BIỂU TƯỢNG</Text>
           <View className="flex-row flex-wrap gap-3 mb-6">
             {FOLDER_ICONS.map((icon) => (
@@ -124,7 +156,6 @@ export const CreateFolderScreen = () => {
             ))}
           </View>
 
-          {/* Chọn màu */}
           <Text className="text-textSecondary text-sm mb-3 font-medium">MÀU SẮC</Text>
           <View className="flex-row flex-wrap gap-3 mb-6">
             {FOLDER_COLORS.map((color) => (
@@ -141,7 +172,6 @@ export const CreateFolderScreen = () => {
             ))}
           </View>
 
-          {/* Tên thư mục */}
           <Text className="text-textSecondary text-sm mb-2 font-medium">TÊN THƯ MỤC *</Text>
           <View className="bg-card rounded-2xl px-4 py-3 mb-5 border border-border">
             <TextInput
@@ -154,7 +184,6 @@ export const CreateFolderScreen = () => {
             />
           </View>
 
-          {/* Mô tả */}
           <Text className="text-textSecondary text-sm mb-2 font-medium">MÔ TẢ (tuỳ chọn)</Text>
           <View className="bg-card rounded-2xl px-4 py-3 mb-5 border border-border">
             <TextInput
@@ -169,7 +198,6 @@ export const CreateFolderScreen = () => {
             />
           </View>
 
-          {/* Công khai */}
           <View className="bg-card rounded-2xl px-4 py-4 flex-row items-center justify-between mb-8">
             <View className="flex-row items-center flex-1">
               <View className="bg-surfaceAlt w-10 h-10 rounded-full items-center justify-center mr-3">
@@ -179,13 +207,13 @@ export const CreateFolderScreen = () => {
                   color={isPublic ? COLORS.accent : COLORS.textMuted}
                 />
               </View>
-              <View>
+              <View className="flex-1">
                 <Text className="text-white font-medium">
                   {isPublic ? 'Công khai' : 'Riêng tư'}
                 </Text>
                 <Text className="text-textMuted text-xs mt-0.5">
                   {isPublic
-                    ? 'Ai có link đều có thể xem'
+                    ? 'Ai có mã chia sẻ đều có thể xem'
                     : 'Chỉ bạn và người được chia sẻ'}
                 </Text>
               </View>

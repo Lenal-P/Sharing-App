@@ -8,8 +8,8 @@ import { compressImage, compressVideo } from '../utils/mediaCompressor';
 import { UploadProgress } from '../config/types';
 
 export const useUploadMedia = () => {
-  const { user } = useAuthStore();
-  const { currentFolder, addMediaItem, updateUploadProgress, setUploadProgress, clearUploadProgress } = useFolderStore();
+  const { user, setUser } = useAuthStore();
+  const { addMediaItem, updateFolder, updateUploadProgress, setUploadProgress, clearUploadProgress } = useFolderStore();
   const [isUploading, setIsUploading] = useState(false);
 
   const requestPermissions = useCallback(async (): Promise<boolean> => {
@@ -58,12 +58,14 @@ export const useUploadMedia = () => {
       }));
       setUploadProgress(initialProgress);
 
+      let totalUploadedBytes = 0;
+      let totalItems = 0;
+
       for (const asset of assets) {
         const fileName = asset.fileName || `media_${Date.now()}`;
         const isVideo = asset.type === 'video';
 
         try {
-          // 1. Nén file
           updateUploadProgress(fileName, { status: 'compressing', progress: 0 });
           const compressedUri = isVideo
             ? await compressVideo(asset.uri, (p) =>
@@ -71,19 +73,17 @@ export const useUploadMedia = () => {
               )
             : await compressImage(asset.uri);
 
-          // 2. Upload lên Storage
           updateUploadProgress(fileName, { status: 'uploading', progress: 50 });
-          const storagePath = `users/${user.uid}/folders/${folderId}`;
+          const storagePath = `${user.uid}/${folderId}`;
           const downloadURL = await StorageService.uploadFile(
             compressedUri,
             storagePath,
             fileName,
-            (p) => updateUploadProgress(fileName, { progress: 50 + p * 0.5 })
+            (p) => updateUploadProgress(fileName, { progress: 50 + p * 0.5 }),
+            isVideo ? 'video' : 'image'
           );
 
-          // 3. Lưu metadata vào Firestore
           const newItem = await FirestoreService.addMediaItem({
-            id: '',
             folderId,
             ownerId: user.uid,
             type: isVideo ? 'video' : 'image',
@@ -95,6 +95,8 @@ export const useUploadMedia = () => {
             duration: asset.duration ?? undefined,
           });
           addMediaItem(newItem);
+          totalUploadedBytes += newItem.fileSize || 0;
+          totalItems += 1;
           updateUploadProgress(fileName, { status: 'done', progress: 100 });
         } catch (error) {
           console.error('Lỗi upload:', error);
@@ -102,10 +104,29 @@ export const useUploadMedia = () => {
         }
       }
 
+      if (totalItems > 0) {
+        const current = useFolderStore.getState().folders.find((f) => f.id === folderId);
+        if (current) {
+          updateFolder(folderId, {
+            mediaCount: (current.mediaCount || 0) + totalItems,
+            totalSize: (current.totalSize || 0) + totalUploadedBytes,
+          });
+        }
+        try {
+          await FirestoreService.incrementUserStorage(user.uid, totalUploadedBytes);
+          setUser({
+            ...user,
+            storageUsed: (user.storageUsed || 0) + totalUploadedBytes,
+          });
+        } catch (e) {
+          console.warn('Không cập nhật được storage của user:', e);
+        }
+      }
+
       setIsUploading(false);
       setTimeout(() => clearUploadProgress(), 3000);
     },
-    [user, addMediaItem, updateUploadProgress, setUploadProgress, clearUploadProgress]
+    [user, setUser, addMediaItem, updateFolder, updateUploadProgress, setUploadProgress, clearUploadProgress]
   );
 
   return {

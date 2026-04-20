@@ -6,15 +6,19 @@ import {
   TouchableOpacity,
   StatusBar,
   Modal,
+  Alert,
 } from 'react-native';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { HomeStackParamList, MediaItem } from '../../config/types';
 import { COLORS } from '../../config/constants';
 import { formatBytes } from '../../utils/formatters';
+import { FirestoreService } from '../../services/firestore.service';
+import { useAuthStore } from '../../store/authStore';
+import { useFolderStore } from '../../store/folderStore';
 
 type RouteType = RouteProp<HomeStackParamList, 'MediaViewer'>;
 
@@ -23,25 +27,48 @@ const { width, height } = Dimensions.get('window');
 export const MediaViewerScreen = () => {
   const route = useRoute<RouteType>();
   const navigation = useNavigation();
-  const { mediaItems, startIndex } = route.params;
+  const { mediaItems: initialItems, startIndex, readOnly } = route.params;
 
+  const { user } = useAuthStore();
+  const { removeMediaItem } = useFolderStore();
+
+  const [items, setItems] = useState<MediaItem[]>(initialItems);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [showInfo, setShowInfo] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  const currentItem: MediaItem = mediaItems[currentIndex];
+  const currentItem: MediaItem | undefined = items[currentIndex];
+
+  const handleDelete = () => {
+    if (!currentItem || !user) return;
+    Alert.alert('Xoá file này?', `"${currentItem.fileName}" sẽ bị xoá vĩnh viễn.`, [
+      { text: 'Huỷ', style: 'cancel' },
+      {
+        text: 'Xoá',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await FirestoreService.deleteMediaItem(currentItem, user.uid);
+            removeMediaItem(currentItem.id);
+            const next = items.filter((m) => m.id !== currentItem.id);
+            if (next.length === 0) {
+              navigation.goBack();
+              return;
+            }
+            setItems(next);
+            setCurrentIndex(Math.min(currentIndex, next.length - 1));
+          } catch (err: any) {
+            Alert.alert('Lỗi', err?.message || 'Không thể xoá file');
+          }
+        },
+      },
+    ]);
+  };
 
   const renderItem = ({ item, index }: { item: MediaItem; index: number }) => (
     <View style={{ width, height }} className="bg-black items-center justify-center">
       {item.type === 'video' ? (
-        <Video
-          source={{ uri: item.url }}
-          style={{ width, height: height * 0.85 }}
-          resizeMode={ResizeMode.CONTAIN}
-          useNativeControls
-          shouldPlay={index === currentIndex}
-          isLooping={false}
-        />
+        <VideoSlide uri={item.url} isActive={index === currentIndex} />
       ) : (
         <Image
           source={{ uri: item.url }}
@@ -70,18 +97,25 @@ export const MediaViewerScreen = () => {
             <Ionicons name="arrow-back" size={26} color="#fff" />
           </TouchableOpacity>
           <Text className="text-white font-medium">
-            {currentIndex + 1} / {mediaItems.length}
+            {currentIndex + 1} / {items.length}
           </Text>
-          <TouchableOpacity onPress={() => setShowInfo(!showInfo)} className="p-2">
-            <Ionicons name="information-circle-outline" size={26} color="#fff" />
-          </TouchableOpacity>
+          <View className="flex-row">
+            {!readOnly && (
+              <TouchableOpacity onPress={handleDelete} className="p-2 mr-1">
+                <Ionicons name="trash-outline" size={24} color="#fff" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => setShowInfo(!showInfo)} className="p-2">
+              <Ionicons name="information-circle-outline" size={26} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
       {/* Image/Video List */}
       <FlatList
         ref={flatListRef}
-        data={mediaItems}
+        data={items}
         keyExtractor={(item) => item.id}
         horizontal
         pagingEnabled
@@ -166,3 +200,25 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => (
     </Text>
   </View>
 );
+
+const VideoSlide = ({ uri, isActive }: { uri: string; isActive: boolean }) => {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.muted = false;
+  });
+
+  useEffect(() => {
+    if (isActive) player.play();
+    else player.pause();
+  }, [isActive, player]);
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width, height: height * 0.85 }}
+      contentFit="contain"
+      nativeControls
+      allowsFullscreen
+    />
+  );
+};

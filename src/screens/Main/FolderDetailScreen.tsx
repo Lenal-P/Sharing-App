@@ -11,7 +11,7 @@ import {
   Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -31,13 +31,33 @@ const ITEM_SIZE = (width - 40 - 8) / 3;
 export const FolderDetailScreen = () => {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteType>();
-  const { folder: initialFolder } = route.params;
+  const { folderId } = route.params;
 
-  const [folder, setFolder] = useState<Folder>(initialFolder);
-  const { mediaItems, setMediaItems, isLoadingMedia, setLoadingMedia, updateFolder } = useFolderStore();
+  const folder = useFolderStore((s) => s.folders.find((f) => f.id === folderId)) as Folder | undefined;
+  const {
+    mediaItems,
+    setMediaItems,
+    isLoadingMedia,
+    setLoadingMedia,
+    updateFolder,
+    uploadProgress,
+  } = useFolderStore();
   const { pickFromLibrary, pickFromCamera, uploadAssets, isUploading } = useUploadMedia();
 
+  const activeUploads = uploadProgress.filter(
+    (p) => p.status === 'compressing' || p.status === 'uploading'
+  );
+  const doneUploads = uploadProgress.filter((p) => p.status === 'done').length;
+  const errorUploads = uploadProgress.filter((p) => p.status === 'error').length;
+  const avgProgress = uploadProgress.length
+    ? Math.round(
+        uploadProgress.reduce((sum, p) => sum + (p.status === 'done' ? 100 : p.progress), 0) /
+          uploadProgress.length
+      )
+    : 0;
+
   const loadMedia = useCallback(async () => {
+    if (!folder) return;
     try {
       setLoadingMedia(true);
       const items = await FirestoreService.getMediaItemsByFolder(folder.id);
@@ -47,12 +67,19 @@ export const FolderDetailScreen = () => {
     } finally {
       setLoadingMedia(false);
     }
-  }, [folder.id]);
+  }, [folder?.id]);
 
   useEffect(() => {
     loadMedia();
     return () => setMediaItems([]);
   }, []);
+
+  // Nếu folder bị xoá khỏi store (ví dụ xoá từ tab khác), quay về.
+  useEffect(() => {
+    if (!folder) navigation.goBack();
+  }, [folder, navigation]);
+
+  if (!folder) return null;
 
   const handleAddMedia = () => {
     Alert.alert('Thêm media', 'Chọn nguồn ảnh/video', [
@@ -81,8 +108,6 @@ export const FolderDetailScreen = () => {
         const result = await FirestoreService.toggleFolderShare(folder.id, true);
         isPublic = result.isPublic;
         shareCode = result.shareCode;
-        const updated: Folder = { ...folder, isPublic, shareCode };
-        setFolder(updated);
         updateFolder(folder.id, { isPublic, shareCode });
       }
       await Share.share({
@@ -122,8 +147,18 @@ export const FolderDetailScreen = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} className="mr-3">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
+        <View
+          style={{ backgroundColor: (folder.color || COLORS.primary) + '33' }}
+          className="w-10 h-10 rounded-full items-center justify-center mr-3"
+        >
+          <Ionicons
+            name={(folder.iconName as any) || 'folder'}
+            size={18}
+            color={folder.color || COLORS.primary}
+          />
+        </View>
         <View className="flex-1">
-          <Text className="text-white text-xl font-bold" numberOfLines={1}>
+          <Text className="text-white text-lg font-bold" numberOfLines={1}>
             {folder.name}
           </Text>
           <Text className="text-textSecondary text-xs mt-0.5">
@@ -131,10 +166,16 @@ export const FolderDetailScreen = () => {
           </Text>
         </View>
         <TouchableOpacity
+          onPress={() => navigation.navigate('CreateFolder', { mode: 'edit', folderId: folder.id })}
+          className="bg-surfaceAlt p-2.5 rounded-full mr-2"
+        >
+          <Ionicons name="create-outline" size={18} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
           onPress={handleShare}
           className="bg-surfaceAlt p-2.5 rounded-full mr-2"
         >
-          <Ionicons name="share-social" size={20} color={COLORS.primary} />
+          <Ionicons name="share-social" size={18} color={COLORS.primary} />
         </TouchableOpacity>
         <TouchableOpacity
           onPress={handleAddMedia}
@@ -148,6 +189,44 @@ export const FolderDetailScreen = () => {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Upload progress banner */}
+      {uploadProgress.length > 0 && (
+        <View className="mx-5 mb-3 bg-card rounded-xl px-4 py-3">
+          <View className="flex-row items-center justify-between mb-2">
+            <View className="flex-row items-center flex-1">
+              {activeUploads.length > 0 ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />
+              )}
+              <Text className="text-white text-sm font-semibold ml-2" numberOfLines={1}>
+                {activeUploads.length > 0
+                  ? `Đang tải ${doneUploads + 1}/${uploadProgress.length}`
+                  : errorUploads > 0
+                  ? `Hoàn thành ${doneUploads}/${uploadProgress.length} · ${errorUploads} lỗi`
+                  : `Hoàn thành ${doneUploads}/${uploadProgress.length}`}
+              </Text>
+            </View>
+            <Text className="text-textSecondary text-xs ml-2">{avgProgress}%</Text>
+          </View>
+          <View className="h-1.5 bg-border rounded-full overflow-hidden">
+            <View
+              style={{
+                width: `${avgProgress}%`,
+                backgroundColor: errorUploads > 0 && activeUploads.length === 0 ? COLORS.error : COLORS.primary,
+              }}
+              className="h-full rounded-full"
+            />
+          </View>
+          {activeUploads[0] && (
+            <Text className="text-textMuted text-xs mt-1.5" numberOfLines={1}>
+              {activeUploads[0].status === 'compressing' ? 'Đang nén: ' : 'Đang tải: '}
+              {activeUploads[0].fileName}
+            </Text>
+          )}
+        </View>
+      )}
 
       {/* Info Bar */}
       {folder.description ? (

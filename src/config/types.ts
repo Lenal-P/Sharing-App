@@ -1,0 +1,86 @@
+// Types cho toàn bộ ứng dụng
+
+export type MediaType = 'image' | 'video';
+
+export interface MediaItem {
+  id: string;
+  folderId: string;
+  ownerId: string;
+  type: MediaType;
+  url: string;
+  thumbnailUrl?: string;
+  fileName: string;
+  fileSize: number;
+  width?: number;
+  height?: number;
+  duration?: number;
+  createdAt: Date;
+  caption?: string;
+}
+
+export interface Folder {
+  id: string;
+  ownerId: string;
+  name: string;
+  description?: string;
+  coverUrl?: string;
+  mediaCount: number;
+  totalSize: number;
+  isPublic: boolean;
+  sharedWith: string[];
+  shareCode?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  tags?: string[];
+}
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  storageUsed: number;
+  folderCount: number;
+  createdAt: Date;
+}
+
+export interface ShareLink {
+  id: string;
+  folderId: string;
+  code: string;
+  createdBy: string;
+  expiresAt?: Date;
+  maxViews?: number;
+  viewCount: number;
+  isActive: boolean;
+}
+
+export type RootStackParamList = {
+  Auth: undefined;
+  Main: undefined;
+};
+
+export type AuthStackParamList = {
+  Login: undefined;
+  Register: undefined;
+};
+
+export type MainTabParamList = {
+  Home: undefined;
+  Upload: undefined;
+  Shared: undefined;
+  Profile: undefined;
+};
+
+export type HomeStackParamList = {
+  FolderList: undefined;
+  FolderDetail: { folder: Folder };
+  MediaViewer: { mediaItems: MediaItem[]; startIndex: number };
+  CreateFolder: undefined;
+};
+
+export interface UploadProgress {
+  fileName: string;
+  progress: number;
+  status: 'compressing' | 'uploading' | 'done' | 'error';
+}

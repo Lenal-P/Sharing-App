@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Sharing",
+    "slug": "sharing-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F0F1A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Cho phép Sharing truy cập camera để chụp ảnh và quay video.",
+        "NSPhotoLibraryUsageDescription": "Cho phép Sharing truy cập thư viện ảnh để tải lên nội dung.",
+        "NSMicrophoneUsageDescription": "Cho phép Sharing truy cập micro để quay video có tiếng."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F0F1A"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ứng dụng cần quyền truy cập thư viện ảnh để bạn có thể chọn và tải ảnh/video lên.",
+          "cameraPermission": "Ứng dụng cần quyền truy cập camera để bạn có thể chụp ảnh/video và tải trực tiếp lên."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Ứng dụng cần quyền truy cập thư viện ảnh để sao lưu dữ liệu.",
+          "savePhotosPermission": "Ứng dụng cần quyền lưu ảnh vào thư viện của bạn."
+        }
+      ]
+    ]
+  }
+}

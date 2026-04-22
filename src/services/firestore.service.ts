@@ -36,10 +36,10 @@ const withTimeout = <T>(promise: Promise<T>, ms = FIREBASE_TIMEOUT_MS, label = '
     ),
   ]);
 
-// File upload qua Cloudinary unsigned preset không xoá được từ client
-// (phải có API secret phía server). Khi user xoá media/thư mục, mình chỉ xoá
-// metadata Firestore; file vật lý trên Cloudinary thành orphan — không ảnh
-// hưởng chức năng, có thể dọn sau qua cron/admin API.
+// Upload qua Cloudinary unsigned preset — không xoá được file vật lý từ
+// client (yêu cầu API secret phía server). Khi user xoá media/folder,
+// service này chỉ xoá metadata Firestore. File trên Cloudinary orphan
+// nhưng không ảnh hưởng UX, có thể dọn thủ công qua Admin API sau.
 
 const SHARE_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const SHARE_CODE_LEN = 6;

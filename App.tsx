@@ -21,7 +21,6 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
-        // Tạo profile nếu thiếu (trường hợp register lỗi dở lần trước).
         const profile = await AuthService.ensureProfileForUser(firebaseUser);
         setUser(profile);
       } else {
@@ -51,7 +50,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <AppNavigator />
       <OnboardingModal visible={showOnboarding} onDone={finishOnboarding} />
     </SafeAreaProvider>

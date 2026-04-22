@@ -10,6 +10,8 @@ declare global {
       EXPO_PUBLIC_MEASUREMENT_ID?: string;
       EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME?: string;
       EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET?: string;
+      EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB?: string;
+      EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS?: string;
     }
   }
   

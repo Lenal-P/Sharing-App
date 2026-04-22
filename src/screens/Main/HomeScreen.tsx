@@ -1,4 +1,4 @@
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, FlatList, RefreshControl, ActivityIndicator, Alert, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../config/constants';
@@ -10,6 +10,10 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList, Folder } from '../../config/types';
 import { formatBytes } from '../../utils/formatters';
+import { PressableScale } from '../../components/PressableScale';
+import { FadeInView } from '../../components/FadeInView';
+import { useCountUp } from '../../hooks/useCountUp';
+import * as Haptics from 'expo-haptics';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'FolderList'>;
 
@@ -22,10 +26,10 @@ export const HomeScreen = () => {
     if (!user) return;
     try {
       setLoadingFolders(true);
-      const userFolders = await FirestoreService.getFoldersByUser(user.uid);
-      setFolders(userFolders);
-    } catch (error) {
-      console.error('Lỗi tải thư mục:', error);
+      const list = await FirestoreService.getFoldersByUser(user.uid);
+      setFolders(list);
+    } catch (err) {
+      console.error('Lỗi tải thư mục:', err);
     } finally {
       setLoadingFolders(false);
     }
@@ -36,17 +40,10 @@ export const HomeScreen = () => {
   }, [loadFolders]);
 
   const handleLongPress = (folder: Folder) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     Alert.alert(folder.name, 'Chọn hành động', [
-      {
-        text: 'Sửa',
-        onPress: () =>
-          navigation.navigate('CreateFolder', { mode: 'edit', folderId: folder.id }),
-      },
-      {
-        text: 'Xoá',
-        style: 'destructive',
-        onPress: () => confirmDelete(folder),
-      },
+      { text: 'Sửa', onPress: () => navigation.navigate('CreateFolder', { mode: 'edit', folderId: folder.id }) },
+      { text: 'Xoá', style: 'destructive', onPress: () => confirmDelete(folder) },
       { text: 'Huỷ', style: 'cancel' },
     ]);
   };
@@ -74,97 +71,99 @@ export const HomeScreen = () => {
     );
   };
 
-  const renderFolder = ({ item }: { item: Folder }) => {
-    const color = item.color || COLORS.primary;
-    const iconName = (item.iconName as any) || 'folder';
-    return (
-      <TouchableOpacity
-        className="bg-card w-[48%] rounded-2xl p-4 mb-4"
-        onPress={() => navigation.navigate('FolderDetail', { folderId: item.id })}
-        onLongPress={() => handleLongPress(item)}
-        activeOpacity={0.75}
-      >
-        <View
-          style={{ backgroundColor: color + '33' }}
-          className="w-12 h-12 rounded-full items-center justify-center mb-3"
-        >
-          <Ionicons name={iconName} size={24} color={color} />
-        </View>
-        <Text className="text-white font-semibold text-base mb-1" numberOfLines={1}>
-          {item.name}
-        </Text>
-        <Text className="text-textSecondary text-xs mb-0.5">{item.mediaCount} mục</Text>
-        <Text className="text-textMuted text-xs">{formatBytes(item.totalSize)}</Text>
-        {item.isPublic && (
-          <View className="flex-row items-center mt-2">
-            <Ionicons name="earth-outline" size={11} color={COLORS.accent} />
-            <Text className="text-accent text-xs ml-1">Công khai</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
+  const totalMedia = folders.reduce((s, f) => s + f.mediaCount, 0);
+  const totalBytes = folders.reduce((s, f) => s + f.totalSize, 0);
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <View className="px-5 py-4 flex-row justify-between items-center">
-        <View>
-          <Text className="text-textSecondary text-sm mb-0.5">Chào mừng quay lại 👋</Text>
-          <Text className="text-white text-2xl font-bold">{user?.displayName || 'Người dùng'}</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('CreateFolder')}
-          className="bg-primary p-3 rounded-full"
+      {/* Dark hero block — Nike alternating rhythm */}
+      <FadeInView>
+        <View
+          style={{
+            backgroundColor: COLORS.primary,
+            paddingHorizontal: 24,
+            paddingTop: 24,
+            paddingBottom: 32,
+            borderBottomLeftRadius: 24,
+            borderBottomRightRadius: 24,
+          }}
         >
-          <Ionicons name="add" size={22} color="#fff" />
-        </TouchableOpacity>
-      </View>
+          <View className="flex-row justify-between items-start mb-8">
+            <View className="flex-1 mr-3">
+              <Text
+                className="text-[11px] font-bold mb-2"
+                style={{ color: COLORS.textMuted, letterSpacing: 1.2, textTransform: 'uppercase' }}
+              >
+                Welcome back
+              </Text>
+              <Text
+                style={{
+                  color: '#fff',
+                  fontSize: 36,
+                  lineHeight: 40,
+                  letterSpacing: -0.5,
+                  fontWeight: '900',
+                  textTransform: 'uppercase',
+                }}
+                numberOfLines={1}
+              >
+                {user?.displayName || 'You'}
+              </Text>
+            </View>
+            <PressableScale
+              onPress={() => navigation.navigate('CreateFolder')}
+              haptic
+              style={{
+                backgroundColor: '#fff',
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="add" size={24} color={COLORS.primary} />
+            </PressableScale>
+          </View>
 
-      <View className="mx-5 mb-4 bg-card rounded-2xl flex-row">
-        <View className="flex-1 items-center py-3 border-r border-border">
-          <Text className="text-white text-xl font-bold">{folders.length}</Text>
-          <Text className="text-textMuted text-xs mt-0.5">Thư mục</Text>
+          {/* Stats in hero */}
+          <View className="flex-row">
+            <HeroStatBox value={folders.length} label="Thư mục" />
+            <View className="w-px" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+            <HeroStatBox value={totalMedia} label="Mục" />
+            <View className="w-px" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+            <HeroStatBox value={formatBytes(totalBytes, 0)} label="Đã dùng" />
+          </View>
         </View>
-        <View className="flex-1 items-center py-3 border-r border-border">
-          <Text className="text-white text-xl font-bold">
-            {folders.reduce((s, f) => s + f.mediaCount, 0)}
+      </FadeInView>
+
+      {/* Section heading */}
+      <FadeInView delay={160}>
+        <View className="flex-row justify-between items-end px-6 mt-6 mb-3">
+          <Text
+            className="text-text"
+            style={{
+              fontSize: 22,
+              lineHeight: 28,
+              letterSpacing: -0.3,
+              fontWeight: '800',
+              textTransform: 'uppercase',
+            }}
+          >
+            Thư mục của bạn
           </Text>
-          <Text className="text-textMuted text-xs mt-0.5">Ảnh & Video</Text>
+          <Text className="text-textSecondary text-[12px]">Giữ để sửa/xoá</Text>
         </View>
-        <View className="flex-1 items-center py-3">
-          <Text className="text-white text-xl font-bold">
-            {formatBytes(folders.reduce((s, f) => s + f.totalSize, 0), 0)}
-          </Text>
-          <Text className="text-textMuted text-xs mt-0.5">Đã dùng</Text>
-        </View>
-      </View>
+      </FadeInView>
 
-      <View className="flex-1 px-5">
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-white text-lg font-bold">Thư mục của tôi</Text>
-          <Text className="text-textMuted text-xs">Giữ lâu để sửa/xoá</Text>
-        </View>
-
+      {/* List */}
+      <View className="flex-1 px-6">
         {isLoadingFolders && folders.length === 0 ? (
           <View className="flex-1 justify-center items-center">
-            <ActivityIndicator size="large" color={COLORS.primary} />
+            <ActivityIndicator size="small" color={COLORS.primary} />
           </View>
         ) : folders.length === 0 ? (
-          <View className="flex-1 justify-center items-center">
-            <View className="bg-surfaceAlt w-24 h-24 rounded-full items-center justify-center mb-4">
-              <Ionicons name="folder-open-outline" size={44} color={COLORS.textMuted} />
-            </View>
-            <Text className="text-white text-lg font-bold mb-2">Chưa có thư mục</Text>
-            <Text className="text-textSecondary text-sm text-center mb-6">
-              Tạo thư mục đầu tiên để bắt đầu lưu trữ ảnh và video của bạn
-            </Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('CreateFolder')}
-              className="bg-primary px-8 py-3 rounded-xl"
-            >
-              <Text className="text-white font-bold">Tạo thư mục</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState onCreate={() => navigation.navigate('CreateFolder')} />
         ) : (
           <FlatList
             data={folders}
@@ -179,10 +178,206 @@ export const HomeScreen = () => {
                 tintColor={COLORS.primary}
               />
             }
-            renderItem={renderFolder}
+            renderItem={({ item, index }) => (
+              <FolderCard
+                item={item}
+                index={index}
+                onPress={() => navigation.navigate('FolderDetail', { folderId: item.id })}
+                onLongPress={() => handleLongPress(item)}
+              />
+            )}
           />
         )}
       </View>
     </SafeAreaView>
   );
 };
+
+const HeroStatBox = ({ value, label }: { value: number | string; label: string }) => {
+  const isNumber = typeof value === 'number';
+  const counted = useCountUp(isNumber ? (value as number) : 0, 900);
+  const display = isNumber ? counted : value;
+  return (
+    <View className="flex-1 items-center">
+      <Text
+        style={{
+          color: '#fff',
+          fontSize: 24,
+          lineHeight: 28,
+          letterSpacing: -0.5,
+          fontWeight: '900',
+        }}
+      >
+        {display}
+      </Text>
+      <Text
+        className="text-[10px] font-bold mt-1"
+        style={{ color: COLORS.textMuted, letterSpacing: 1, textTransform: 'uppercase' }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+};
+
+const FolderCard = ({
+  item,
+  index,
+  onPress,
+  onLongPress,
+}: {
+  item: Folder;
+  index: number;
+  onPress: () => void;
+  onLongPress: () => void;
+}) => {
+  const color = item.color || COLORS.primary;
+  const iconName = (item.iconName as any) || 'folder';
+  const hasCover = !!item.coverUrl;
+
+  return (
+    <FadeInView delay={index * 40} style={{ width: '48%', marginBottom: 12 }}>
+      <PressableScale onPress={onPress} onLongPress={onLongPress} scaleTo={0.96}>
+        {hasCover ? (
+          <ImageBackground
+            source={{ uri: item.coverUrl }}
+            style={{ height: 180, justifyContent: 'flex-end', overflow: 'hidden' }}
+            imageStyle={{ borderRadius: 20 }}
+          >
+            <View
+              style={{
+                backgroundColor: 'rgba(0,0,0,0.55)',
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                borderBottomLeftRadius: 20,
+                borderBottomRightRadius: 20,
+              }}
+            >
+              <Text
+                style={{ color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: -0.2 }}
+                numberOfLines={1}
+              >
+                {item.name}
+              </Text>
+              <Text
+                style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2 }}
+              >
+                {item.mediaCount} mục · {formatBytes(item.totalSize, 0)}
+              </Text>
+            </View>
+            {item.isPublic && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  left: 12,
+                  backgroundColor: COLORS.primary,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 30,
+                }}
+              >
+                <Text
+                  style={{
+                    color: '#fff',
+                    fontSize: 10,
+                    fontWeight: '800',
+                    letterSpacing: 0.6,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Public
+                </Text>
+              </View>
+            )}
+          </ImageBackground>
+        ) : (
+          <View
+            style={{
+              backgroundColor: COLORS.surface,
+              borderRadius: 20,
+              padding: 16,
+              minHeight: 140,
+            }}
+          >
+            <View
+              style={{ backgroundColor: color }}
+              className="w-11 h-11 rounded-full items-center justify-center mb-4"
+            >
+              <Ionicons name={iconName} size={20} color="#fff" />
+            </View>
+            <Text
+              className="text-text font-semibold text-[16px]"
+              style={{ lineHeight: 20 }}
+              numberOfLines={1}
+            >
+              {item.name}
+            </Text>
+            <Text className="text-textSecondary text-[14px] mt-1" style={{ lineHeight: 20 }}>
+              {item.mediaCount} mục · {formatBytes(item.totalSize, 0)}
+            </Text>
+            {item.isPublic && (
+              <View
+                className="flex-row items-center mt-3"
+                style={{ alignSelf: 'flex-start' }}
+              >
+                <View className="bg-primary px-2 py-0.5 rounded-pill">
+                  <Text
+                    className="text-white text-[10px] font-bold"
+                    style={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+                  >
+                    Public
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+      </PressableScale>
+    </FadeInView>
+  );
+};
+
+const EmptyState = ({ onCreate }: { onCreate: () => void }) => (
+  <View className="flex-1 items-center justify-center pb-20">
+    <View className="bg-surface w-20 h-20 rounded-full items-center justify-center mb-5">
+      <Ionicons name="folder-open-outline" size={36} color={COLORS.textSecondary} />
+    </View>
+    <Text
+      className="text-text mb-2"
+      style={{
+        fontSize: 24,
+        letterSpacing: -0.3,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+      }}
+    >
+      Chưa có gì
+    </Text>
+    <Text
+      className="text-textSecondary text-center mb-6 px-8 text-[15px]"
+      style={{ lineHeight: 22 }}
+    >
+      Tạo thư mục đầu tiên để bắt đầu lưu trữ ảnh và video.
+    </Text>
+    <PressableScale
+      onPress={onCreate}
+      haptic
+      style={{
+        backgroundColor: COLORS.primary,
+        height: 48,
+        paddingHorizontal: 28,
+        borderRadius: 30,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}
+    >
+      <Text
+        className="text-white font-semibold text-[16px]"
+        style={{ letterSpacing: 0.3, textTransform: 'uppercase' }}
+      >
+        Tạo thư mục
+      </Text>
+    </PressableScale>
+  </View>
+);

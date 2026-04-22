@@ -16,15 +16,16 @@ export const MainTabNavigator = () => {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.surfaceAlt,
+          backgroundColor: 'rgba(255,255,255,0.96)',
           borderTopColor: COLORS.border,
           borderTopWidth: 0.5,
-          height: 64,
-          paddingBottom: 10,
+          height: 68,
+          paddingBottom: 12,
           paddingTop: 8,
         },
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarInactiveTintColor: COLORS.textMuted as string,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '500', letterSpacing: -0.08 },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = 'folder';
 
@@ -51,9 +52,9 @@ export const MainTabNavigator = () => {
                   marginBottom: 12,
                   shadowColor: COLORS.primary,
                   shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 8,
-                  elevation: 8,
+                  shadowOpacity: 0.22,
+                  shadowRadius: 12,
+                  elevation: 6,
                 }}
               >
                 <Ionicons name="add" size={28} color="#fff" />

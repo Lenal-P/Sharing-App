@@ -3,7 +3,6 @@ import { MediaType } from '../config/types';
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
-// Không có byte nào được chuyển trong 60s → coi như treo và huỷ upload.
 const STALL_TIMEOUT_MS = 60000;
 
 const guessMimeType = (fileName: string, mediaType: MediaType): string => {
@@ -22,8 +21,8 @@ const guessMimeType = (fileName: string, mediaType: MediaType): string => {
 
 export const StorageService = {
   /**
-   * Upload 1 file ảnh hoặc video lên Cloudinary (unsigned preset).
-   * Trả về `secure_url` (full resolution, không nén phía Cloudinary).
+   * Upload 1 file ảnh/video lên Cloudinary (unsigned preset).
+   * Trả về `secure_url` — full resolution, không nén phía Cloudinary.
    */
   uploadFile(
     uri: string,
@@ -34,9 +33,7 @@ export const StorageService = {
   ): Promise<string> {
     if (!CLOUD_NAME || !UPLOAD_PRESET) {
       return Promise.reject(
-        new Error(
-          'Cloudinary chưa cấu hình. Thiếu EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME hoặc EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET trong .env'
-        )
+        new Error('Cloudinary chưa cấu hình. Thiếu EXPO_PUBLIC_CLOUDINARY_* trong .env')
       );
     }
 
@@ -58,9 +55,7 @@ export const StorageService = {
       const resetStall = () => {
         if (stallTimer) clearTimeout(stallTimer);
         stallTimer = setTimeout(() => {
-          try {
-            xhr.abort();
-          } catch {}
+          try { xhr.abort(); } catch {}
           reject(new Error('Upload bị treo — kiểm tra mạng hoặc cấu hình Cloudinary'));
         }, STALL_TIMEOUT_MS);
       };
@@ -71,16 +66,13 @@ export const StorageService = {
           resetStall();
         }
       };
-
       xhr.onerror = () => {
         if (stallTimer) clearTimeout(stallTimer);
         reject(new Error('Lỗi mạng khi upload lên Cloudinary'));
       };
-
       xhr.onabort = () => {
         if (stallTimer) clearTimeout(stallTimer);
       };
-
       xhr.onload = () => {
         if (stallTimer) clearTimeout(stallTimer);
         if (xhr.status >= 200 && xhr.status < 300) {

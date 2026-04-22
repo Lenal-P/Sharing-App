@@ -28,9 +28,10 @@ const FOLDER_ICONS = [
   'star', 'heart', 'briefcase', 'school',
   'camera', 'musical-notes', 'airplane', 'gift',
 ] as const;
+
 const FOLDER_COLORS = [
-  '#FF6B35', '#FFA94D', '#2EC4B6', '#4ADE80',
-  '#F97583', '#A78BFA', '#60A5FA', '#F472B6',
+  '#0071E3', '#2997FF', '#28CD41', '#FF9500',
+  '#FF3B30', '#AF52DE', '#FF2D92', '#5E5CE6',
 ];
 
 export const CreateFolderScreen = () => {
@@ -102,61 +103,83 @@ export const CreateFolderScreen = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        <View className="flex-row items-center px-5 py-4">
+        <View className="flex-row items-center px-6 py-3 border-b border-border">
           <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Ionicons name="close" size={24} color={COLORS.text} />
           </TouchableOpacity>
-          <Text className="text-white text-xl font-bold flex-1">
-            {isEdit ? 'Sửa thư mục' : 'Tạo thư mục mới'}
+          <Text
+            className="text-text font-semibold flex-1"
+            style={{ fontSize: 17, letterSpacing: -0.374 }}
+          >
+            {isEdit ? 'Sửa thư mục' : 'Thư mục mới'}
           </Text>
           <TouchableOpacity
             onPress={handleSave}
             disabled={isLoading}
-            className="bg-primary px-4 py-2 rounded-xl"
+            className="bg-primary rounded-xs px-4 h-9 justify-center"
+            activeOpacity={0.85}
           >
-            <Text className="text-white font-bold">
+            <Text className="text-white font-semibold text-[14px]">
               {isLoading ? 'Đang lưu...' : 'Lưu'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-5">
+        <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-6">
           {/* Preview */}
-          <View className="items-center mb-8 mt-4">
+          <View className="items-center mb-10 mt-8">
             <View
-              style={{ backgroundColor: selectedColor + '33', borderColor: selectedColor }}
-              className="w-28 h-28 rounded-3xl items-center justify-center border-2 mb-3"
+              style={{ backgroundColor: selectedColor + '1A' }}
+              className="w-28 h-28 rounded-xl items-center justify-center mb-3"
             >
               <Ionicons name={selectedIcon as any} size={52} color={selectedColor} />
             </View>
-            <Text className="text-white font-semibold text-lg">
+            <Text
+              className="text-text font-semibold"
+              style={{ fontSize: 21, letterSpacing: -0.231 }}
+              numberOfLines={1}
+            >
               {name || 'Tên thư mục'}
             </Text>
           </View>
 
-          <Text className="text-textSecondary text-sm mb-3 font-medium">BIỂU TƯỢNG</Text>
+          <Text
+            className="text-textMuted text-[12px] font-medium mb-3"
+            style={{ letterSpacing: 0.3, textTransform: 'uppercase' }}
+          >
+            Biểu tượng
+          </Text>
           <View className="flex-row flex-wrap gap-3 mb-6">
-            {FOLDER_ICONS.map((icon) => (
-              <TouchableOpacity
-                key={icon}
-                onPress={() => setSelectedIcon(icon)}
-                style={{
-                  backgroundColor: selectedIcon === icon ? selectedColor + '33' : COLORS.card,
-                  borderColor: selectedIcon === icon ? selectedColor : 'transparent',
-                  borderWidth: 2,
-                }}
-                className="w-14 h-14 rounded-2xl items-center justify-center"
-              >
-                <Ionicons
-                  name={icon as any}
-                  size={26}
-                  color={selectedIcon === icon ? selectedColor : COLORS.textSecondary}
-                />
-              </TouchableOpacity>
-            ))}
+            {FOLDER_ICONS.map((icon) => {
+              const active = selectedIcon === icon;
+              return (
+                <TouchableOpacity
+                  key={icon}
+                  onPress={() => setSelectedIcon(icon)}
+                  style={{
+                    backgroundColor: active ? selectedColor + '1A' : COLORS.surface,
+                    borderColor: active ? selectedColor : 'transparent',
+                    borderWidth: 2,
+                  }}
+                  className="w-14 h-14 rounded-md items-center justify-center"
+                  activeOpacity={0.85}
+                >
+                  <Ionicons
+                    name={icon as any}
+                    size={24}
+                    color={active ? selectedColor : (COLORS.textSecondary as string)}
+                  />
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          <Text className="text-textSecondary text-sm mb-3 font-medium">MÀU SẮC</Text>
+          <Text
+            className="text-textMuted text-[12px] font-medium mb-3"
+            style={{ letterSpacing: 0.3, textTransform: 'uppercase' }}
+          >
+            Màu sắc
+          </Text>
           <View className="flex-row flex-wrap gap-3 mb-6">
             {FOLDER_COLORS.map((color) => (
               <TouchableOpacity
@@ -164,65 +187,73 @@ export const CreateFolderScreen = () => {
                 onPress={() => setSelectedColor(color)}
                 style={{ backgroundColor: color }}
                 className="w-10 h-10 rounded-full items-center justify-center"
+                activeOpacity={0.85}
               >
                 {selectedColor === color && (
-                  <Ionicons name="checkmark" size={20} color="#fff" />
+                  <Ionicons name="checkmark" size={18} color="#fff" />
                 )}
               </TouchableOpacity>
             ))}
           </View>
 
-          <Text className="text-textSecondary text-sm mb-2 font-medium">TÊN THƯ MỤC *</Text>
-          <View className="bg-card rounded-2xl px-4 py-3 mb-5 border border-border">
+          <Text
+            className="text-textMuted text-[12px] font-medium mb-2"
+            style={{ letterSpacing: 0.3, textTransform: 'uppercase' }}
+          >
+            Tên thư mục *
+          </Text>
+          <View className="bg-surface rounded-md px-4 h-12 justify-center mb-5">
             <TextInput
               value={name}
               onChangeText={setName}
               placeholder="Nhập tên thư mục..."
-              placeholderTextColor={COLORS.textMuted}
-              style={{ color: COLORS.text, fontSize: 15 }}
+              placeholderTextColor={COLORS.textMuted as string}
+              style={{ color: COLORS.text, fontSize: 17 }}
               maxLength={50}
             />
           </View>
 
-          <Text className="text-textSecondary text-sm mb-2 font-medium">MÔ TẢ (tuỳ chọn)</Text>
-          <View className="bg-card rounded-2xl px-4 py-3 mb-5 border border-border">
+          <Text
+            className="text-textMuted text-[12px] font-medium mb-2"
+            style={{ letterSpacing: 0.3, textTransform: 'uppercase' }}
+          >
+            Mô tả (tuỳ chọn)
+          </Text>
+          <View className="bg-surface rounded-md px-4 py-3 mb-5 min-h-[80px]">
             <TextInput
               value={description}
               onChangeText={setDescription}
-              placeholder="Mô tả ngắn về thư mục..."
-              placeholderTextColor={COLORS.textMuted}
-              style={{ color: COLORS.text, fontSize: 15 }}
+              placeholder="Mô tả ngắn..."
+              placeholderTextColor={COLORS.textMuted as string}
+              style={{ color: COLORS.text, fontSize: 17 }}
               multiline
               numberOfLines={3}
               maxLength={200}
+              textAlignVertical="top"
             />
           </View>
 
-          <View className="bg-card rounded-2xl px-4 py-4 flex-row items-center justify-between mb-8">
+          <View className="bg-surface rounded-lg px-4 py-4 flex-row items-center justify-between mb-10">
             <View className="flex-row items-center flex-1">
-              <View className="bg-surfaceAlt w-10 h-10 rounded-full items-center justify-center mr-3">
-                <Ionicons
-                  name={isPublic ? 'earth' : 'lock-closed'}
-                  size={20}
-                  color={isPublic ? COLORS.accent : COLORS.textMuted}
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-white font-medium">
+              <Ionicons
+                name={isPublic ? 'globe-outline' : 'lock-closed-outline'}
+                size={20}
+                color={isPublic ? COLORS.primary : (COLORS.textMuted as string)}
+              />
+              <View className="ml-3 flex-1">
+                <Text className="text-text font-semibold text-[15px]">
                   {isPublic ? 'Công khai' : 'Riêng tư'}
                 </Text>
-                <Text className="text-textMuted text-xs mt-0.5">
-                  {isPublic
-                    ? 'Ai có mã chia sẻ đều có thể xem'
-                    : 'Chỉ bạn và người được chia sẻ'}
+                <Text className="text-textMuted text-[12px] mt-0.5">
+                  {isPublic ? 'Ai có mã chia sẻ đều có thể xem' : 'Chỉ bạn và người được chia sẻ'}
                 </Text>
               </View>
             </View>
             <Switch
               value={isPublic}
               onValueChange={setIsPublic}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '80' }}
-              thumbColor={isPublic ? COLORS.primary : COLORS.textMuted}
+              trackColor={{ false: '#E5E5EA', true: COLORS.primary }}
+              thumbColor={'#fff'}
             />
           </View>
         </ScrollView>

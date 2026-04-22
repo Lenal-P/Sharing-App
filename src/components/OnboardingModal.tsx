@@ -23,23 +23,23 @@ type Slide = {
 const SLIDES: Slide[] = [
   {
     icon: 'sparkles',
-    title: 'Chào mừng đến Sharing!',
-    desc: 'Lưu trữ ảnh, video và chia sẻ khoảnh khắc với người thân một cách đơn giản.',
+    title: 'Chào mừng đến Sharing',
+    desc: 'Lưu trữ ảnh, video và chia sẻ khoảnh khắc một cách đơn giản.',
   },
   {
     icon: 'folder-open',
     title: 'Tạo thư mục',
-    desc: 'Nhấn nút + ở tab "Thư mục" để tạo không gian riêng cho từng bộ sưu tập ảnh.',
+    desc: 'Nhấn nút + trong tab “Thư mục” để tạo không gian riêng cho mỗi bộ sưu tập.',
   },
   {
     icon: 'cloud-upload',
-    title: 'Tải ảnh/video lên',
-    desc: 'Mở một thư mục rồi nhấn + ở góc phải, hoặc dùng tab "Tải lên" để upload nhanh.',
+    title: 'Tải lên',
+    desc: 'Mở một thư mục rồi nhấn +, hoặc dùng tab “Tải lên” để upload nhanh.',
   },
   {
     icon: 'share-social',
     title: 'Chia sẻ bằng mã',
-    desc: 'Mỗi thư mục công khai có mã 6 ký tự. Bạn bè chỉ cần nhập mã ở tab "Chia sẻ" là xem được.',
+    desc: 'Mỗi thư mục công khai có mã 6 ký tự. Nhập mã ở tab “Chia sẻ” là xem được.',
   },
 ];
 
@@ -72,9 +72,9 @@ export const OnboardingModal = ({ visible, onDone }: Props) => {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDone}>
       <View className="flex-1 bg-background">
-        <View className="flex-row justify-end px-5 pt-14">
-          <TouchableOpacity onPress={onDone} className="px-4 py-2">
-            <Text className="text-textMuted text-sm font-medium">Bỏ qua</Text>
+        <View className="flex-row justify-end px-6 pt-14">
+          <TouchableOpacity onPress={onDone} className="px-4 py-2" activeOpacity={0.6}>
+            <Text className="text-primaryDark text-[15px] font-medium">Bỏ qua</Text>
           </TouchableOpacity>
         </View>
 
@@ -87,34 +87,39 @@ export const OnboardingModal = ({ visible, onDone }: Props) => {
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={onScrollEnd}
           renderItem={({ item }) => (
-            <View style={{ width }} className="items-center px-8 mt-4">
+            <View style={{ width }} className="items-center px-10 mt-6">
               <View
-                style={{ backgroundColor: COLORS.primary + '26' }}
-                className="w-48 h-48 rounded-full items-center justify-center mb-10"
+                style={{ backgroundColor: COLORS.primary + '14' }}
+                className="w-44 h-44 rounded-xl items-center justify-center mb-12"
               >
-                <Ionicons name={item.icon} size={96} color={COLORS.primary} />
+                <Ionicons name={item.icon} size={88} color={COLORS.primary} />
               </View>
-              <Text className="text-white text-2xl font-bold mb-4 text-center">
+              <Text
+                className="text-text font-semibold mb-4 text-center"
+                style={{ fontSize: 34, lineHeight: 40, letterSpacing: -0.374 }}
+              >
                 {item.title}
               </Text>
-              <Text className="text-textSecondary text-base text-center leading-6">
+              <Text
+                className="text-textSecondary text-center"
+                style={{ fontSize: 17, lineHeight: 25, letterSpacing: -0.374 }}
+              >
                 {item.desc}
               </Text>
             </View>
           )}
         />
 
-        {/* Dots */}
         <View className="flex-row items-center justify-center mb-8">
           {SLIDES.map((_, i) => (
             <View
               key={i}
               style={{
-                width: i === index ? 24 : 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: i === index ? COLORS.primary : COLORS.border,
-                marginHorizontal: 4,
+                width: i === index ? 22 : 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: i === index ? COLORS.primary : 'rgba(0,0,0,0.15)',
+                marginHorizontal: 3,
               }}
             />
           ))}
@@ -123,10 +128,10 @@ export const OnboardingModal = ({ visible, onDone }: Props) => {
         <View className="px-6 pb-10">
           <TouchableOpacity
             onPress={handleNext}
-            className="bg-primary rounded-2xl h-14 items-center justify-center flex-row"
+            className="bg-primary rounded-xs h-12 items-center justify-center flex-row"
             activeOpacity={0.85}
           >
-            <Text className="text-white font-bold text-base">
+            <Text className="text-white font-semibold text-[17px]">
               {isLast ? 'Bắt đầu' : 'Tiếp theo'}
             </Text>
             {!isLast && (

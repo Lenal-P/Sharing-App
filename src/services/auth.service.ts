@@ -7,7 +7,7 @@ import {
   deleteUser,
   User,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { UserProfile } from '../config/types';
 
@@ -34,19 +34,16 @@ export const AuthService = {
   async register(email: string, password: string, displayName: string): Promise<UserProfile> {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     const user = credential.user;
-
     try {
       await updateProfile(user, { displayName });
       return await ensureProfileDoc(user, displayName);
     } catch (error) {
-      // Firestore từ chối ghi (thường do rules) → xoá auth user vừa tạo để user
-      // có thể đăng ký lại với email đó thay vì bị kẹt 'email-already-in-use'.
+      // Firestore ghi thất bại → rollback auth user để email có thể đăng ký lại
       try {
         await deleteUser(user);
       } catch (rollbackErr) {
         console.warn('Không rollback được auth user:', rollbackErr);
       }
-      console.error('Lỗi khi đăng ký:', error);
       throw error;
     }
   },
@@ -76,13 +73,19 @@ export const AuthService = {
     }
   },
 
-  /** Self-heal: nếu đã auth nhưng doc Firestore chưa có (do register lỗi dở), tự tạo. */
   async ensureProfileForUser(user: User): Promise<UserProfile | null> {
     try {
       return await ensureProfileDoc(user);
     } catch (error) {
       console.error('Không tạo được profile:', error);
       return null;
+    }
+  },
+
+  async updateDisplayName(uid: string, displayName: string): Promise<void> {
+    await updateDoc(doc(db, 'users', uid), { displayName });
+    if (auth.currentUser) {
+      await updateProfile(auth.currentUser, { displayName });
     }
   },
 };

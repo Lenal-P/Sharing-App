@@ -8,6 +8,8 @@ export interface MediaItem {
   ownerId: string;
   type: MediaType;
   url: string;
+  /** Google Drive file ID — để xoá/set permission qua Drive API */
+  fileId?: string;
   thumbnailUrl?: string;
   fileName: string;
   fileSize: number;
@@ -44,6 +46,8 @@ export interface UserProfile {
   storageUsed: number;
   folderCount: number;
   createdAt: Date;
+  /** ID folder "Sharing App" do app tạo ở Drive của user */
+  driveAppFolderId?: string;
 }
 
 export interface ShareLink {

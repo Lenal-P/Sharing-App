@@ -1,70 +1,72 @@
-import { TouchableOpacity, Text, ActivityIndicator, TouchableOpacityProps, View } from 'react-native';
+import { Text, ActivityIndicator, View, PressableProps } from 'react-native';
+import { PressableScale } from './PressableScale';
 import { COLORS } from '../config/constants';
 
-interface ButtonProps extends TouchableOpacityProps {
+interface ButtonProps extends Omit<PressableProps, 'style'> {
   title: string;
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  /** primary=black pill CTA, inverse=white pill on dark, outlined=border pill, text=link */
+  variant?: 'primary' | 'inverse' | 'outlined' | 'text';
+  size?: 'lg' | 'md' | 'sm';
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
+  className?: string;
+  uppercase?: boolean;
 }
 
 export const Button = ({
   title,
   variant = 'primary',
+  size = 'lg',
   isLoading = false,
   leftIcon,
   className = '',
   disabled,
+  uppercase = false,
   ...props
 }: ButtonProps) => {
-  const getVariantStyles = () => {
-    switch (variant) {
-      case 'primary':
-        return 'bg-primary border-primary';
-      case 'secondary':
-        return 'bg-surfaceAlt border-surfaceAlt';
-      case 'outline':
-        return 'bg-transparent border-primary border-2';
-      case 'ghost':
-        return 'bg-transparent border-transparent';
-      default:
-        return 'bg-primary border-primary';
-    }
-  };
+  const sizing =
+    size === 'lg' ? 'h-12 px-6' : size === 'md' ? 'h-10 px-5' : 'h-8 px-4';
+  const textSize =
+    size === 'lg' ? 'text-[16px]' : size === 'md' ? 'text-[14px]' : 'text-[12px]';
 
-  const getTextColor = () => {
-    switch (variant) {
-      case 'primary':
-        return 'text-white';
-      case 'secondary':
-        return 'text-white';
-      case 'outline':
-        return 'text-primary';
-      case 'ghost':
-        return 'text-textSecondary';
-      default:
-        return 'text-white';
-    }
-  };
+  const container = {
+    primary: 'bg-primary',
+    inverse: 'bg-white',
+    outlined: 'bg-transparent border border-border',
+    text: 'bg-transparent',
+  }[variant];
+
+  const txtColor = {
+    primary: 'text-white',
+    inverse: 'text-primary',
+    outlined: 'text-primary',
+    text: 'text-primary',
+  }[variant];
 
   return (
-    <TouchableOpacity
-      className={`h-14 flex-row justify-center items-center rounded-xl px-4 ${getVariantStyles()} ${
-        disabled || isLoading ? 'opacity-50' : 'opacity-100'
+    <PressableScale
+      className={`${sizing} rounded-pill ${container} flex-row justify-center items-center ${
+        disabled || isLoading ? 'opacity-40' : ''
       } ${className}`}
       disabled={disabled || isLoading}
+      haptic={variant === 'primary'}
       {...props}
     >
       {isLoading ? (
-        <ActivityIndicator color={variant === 'outline' ? COLORS.primary : '#FFFFFF'} />
+        <ActivityIndicator
+          color={variant === 'primary' ? '#FFFFFF' : COLORS.primary}
+        />
       ) : (
         <View className="flex-row items-center">
           {leftIcon && <View className="mr-2">{leftIcon}</View>}
-          <Text className={`font-semibold text-lg ${getTextColor()}`}>
+          <Text
+            className={`font-semibold ${textSize} ${txtColor}`}
+            style={uppercase ? { textTransform: 'uppercase', letterSpacing: 0.5 } : undefined}
+          >
             {title}
           </Text>
         </View>
       )}
-    </TouchableOpacity>
+    </PressableScale>
   );
 };

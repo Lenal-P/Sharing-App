@@ -1,4 +1,4 @@
-import { NavigationContainer, DarkTheme, Theme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
 import { View, ActivityIndicator } from 'react-native';
@@ -9,11 +9,11 @@ import { COLORS } from '../config/constants';
 const Stack = createNativeStackNavigator();
 
 const AppTheme: Theme = {
-  ...DarkTheme,
+  ...DefaultTheme,
   colors: {
-    ...DarkTheme.colors,
+    ...DefaultTheme.colors,
     background: COLORS.background,
-    card: COLORS.surface,
+    card: COLORS.card,
     border: COLORS.border,
     primary: COLORS.primary,
     text: COLORS.text,

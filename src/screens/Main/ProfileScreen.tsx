@@ -12,7 +12,7 @@ import { auth } from '../../config/firebase';
 import { useFolderStore } from '../../store/folderStore';
 import { useUIStore } from '../../store/uiStore';
 
-const FREE_QUOTA_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB (Firebase Storage free tier)
+const FREE_QUOTA_BYTES = 5 * 1024 * 1024 * 1024;
 
 export const ProfileScreen = () => {
   const { user, setUser } = useAuthStore();
@@ -30,17 +30,7 @@ export const ProfileScreen = () => {
   const handleLogout = () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
       { text: 'Huỷ', style: 'cancel' },
-      {
-        text: 'Đăng xuất',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await AuthService.logout();
-          } catch (error) {
-            console.error(error);
-          }
-        },
-      },
+      { text: 'Đăng xuất', style: 'destructive', onPress: () => AuthService.logout().catch(console.error) },
     ]);
   };
 
@@ -58,9 +48,7 @@ export const ProfileScreen = () => {
     try {
       setSaving(true);
       await FirestoreService.updateUserProfile(user.uid, { displayName: name });
-      if (auth.currentUser) {
-        await updateProfile(auth.currentUser, { displayName: name });
-      }
+      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: name });
       setUser({ ...user, displayName: name });
       setEditingName(false);
     } catch (err: any) {
@@ -75,57 +63,77 @@ export const ProfileScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View className="px-5 pt-4 pb-2">
-          <Text className="text-white text-2xl font-bold">Trang cá nhân</Text>
+        <View className="px-6 pt-6 pb-2">
+          <Text
+            className="text-textSecondary text-[12px] font-semibold mb-2"
+            style={{ letterSpacing: 1, textTransform: 'uppercase' }}
+          >
+            Tài khoản
+          </Text>
+          <Text
+            className="text-text"
+            style={{
+              fontSize: 36,
+              lineHeight: 40,
+              letterSpacing: -0.5,
+              fontWeight: '900',
+              textTransform: 'uppercase',
+            }}
+          >
+            Hồ sơ
+          </Text>
         </View>
 
-        {/* Avatar + info */}
-        <View className="bg-card mx-5 rounded-2xl p-6 items-center mt-4 mb-5">
-          <View className="w-24 h-24 bg-primary rounded-full justify-center items-center mb-4">
-            <Text className="text-white text-4xl font-bold">{initial}</Text>
+        {/* Avatar card */}
+        <View className="bg-surface mx-6 rounded-lg p-6 items-center mt-5 mb-5">
+          <View className="w-20 h-20 bg-primary rounded-full justify-center items-center mb-4">
+            <Text className="text-white font-semibold" style={{ fontSize: 36, letterSpacing: -0.5 }}>
+              {initial}
+            </Text>
           </View>
-          <Text className="text-white text-xl font-bold">{user?.displayName}</Text>
-          <Text className="text-textSecondary text-sm mt-1">{user?.email}</Text>
+          <Text
+            className="text-text font-semibold"
+            style={{ fontSize: 21, letterSpacing: -0.231 }}
+          >
+            {user?.displayName}
+          </Text>
+          <Text className="text-textSecondary text-[14px] mt-1" style={{ letterSpacing: -0.224 }}>
+            {user?.email}
+          </Text>
           <TouchableOpacity
             onPress={() => {
               setNewName(user?.displayName || '');
               setEditingName(true);
             }}
-            className="mt-4 flex-row items-center bg-surfaceAlt px-4 py-2 rounded-full"
+            className="mt-4 flex-row items-center bg-background rounded-pill px-4 h-8 border border-primaryDark"
+            activeOpacity={0.85}
           >
-            <Ionicons name="create-outline" size={16} color={COLORS.primary} />
-            <Text className="text-primary text-sm font-semibold ml-1">Sửa tên</Text>
+            <Ionicons name="pencil-outline" size={13} color={COLORS.primaryDark} />
+            <Text className="text-primaryDark text-[13px] font-semibold ml-1">Sửa tên</Text>
           </TouchableOpacity>
         </View>
 
         {/* Stats */}
-        <View className="mx-5 mb-5 flex-row">
-          <View className="flex-1 bg-card rounded-2xl p-4 mr-2 items-center">
-            <Ionicons name="folder" size={22} color={COLORS.primary} />
-            <Text className="text-white text-xl font-bold mt-2">{folders.length}</Text>
-            <Text className="text-textMuted text-xs mt-0.5">Thư mục</Text>
-          </View>
-          <View className="flex-1 bg-card rounded-2xl p-4 mx-1 items-center">
-            <Ionicons name="images" size={22} color={COLORS.secondary} />
-            <Text className="text-white text-xl font-bold mt-2">{totalMedia}</Text>
-            <Text className="text-textMuted text-xs mt-0.5">File</Text>
-          </View>
-          <View className="flex-1 bg-card rounded-2xl p-4 ml-2 items-center">
-            <Ionicons name="cloud-done" size={22} color={COLORS.accent} />
-            <Text className="text-white text-xl font-bold mt-2">
-              {formatBytes(storageUsed, 0)}
-            </Text>
-            <Text className="text-textMuted text-xs mt-0.5">Đã dùng</Text>
-          </View>
+        <View className="mx-6 mb-5 flex-row">
+          <StatCard icon="folder-outline" value={folders.length} label="Thư mục" />
+          <View className="w-3" />
+          <StatCard icon="images-outline" value={totalMedia} label="File" />
+          <View className="w-3" />
+          <StatCard icon="cloud-done-outline" value={formatBytes(storageUsed, 0)} label="Đã dùng" />
         </View>
 
         {/* Storage usage bar */}
-        <View className="bg-card mx-5 rounded-2xl p-5 mb-5">
+        <View className="bg-surface mx-6 rounded-lg p-5 mb-5">
           <View className="flex-row items-center mb-3">
-            <Ionicons name="pie-chart" size={22} color={COLORS.primary} />
-            <Text className="text-white text-base font-semibold ml-2">Dung lượng</Text>
+            <Ionicons name="server-outline" size={18} color={COLORS.primary} />
+            <Text
+              className="text-text font-semibold ml-2"
+              style={{ fontSize: 15, letterSpacing: -0.224 }}
+            >
+              Dung lượng
+            </Text>
           </View>
-          <View className="h-2 bg-border rounded-full overflow-hidden mb-2">
+          <View className="h-1.5 bg-border rounded-full overflow-hidden mb-2">
             <View
               style={{
                 width: `${storagePct}%`,
@@ -135,46 +143,51 @@ export const ProfileScreen = () => {
             />
           </View>
           <View className="flex-row justify-between">
-            <Text className="text-textSecondary text-xs">
+            <Text className="text-textSecondary text-[12px]">
               {formatBytes(storageUsed)} / {formatBytes(FREE_QUOTA_BYTES, 0)}
             </Text>
-            <Text className="text-textMuted text-xs">{storagePct.toFixed(1)}%</Text>
+            <Text className="text-textMuted text-[12px]">{storagePct.toFixed(1)}%</Text>
           </View>
         </View>
 
         {/* Menu */}
-        <View className="bg-card mx-5 rounded-2xl overflow-hidden mb-5">
+        <View className="bg-surface mx-6 rounded-lg overflow-hidden mb-5">
           <MenuRow
             icon="compass-outline"
             label="Xem lại hướng dẫn"
             onPress={() => setShowOnboarding(true)}
           />
           <MenuRow icon="notifications-outline" label="Thông báo" />
-          <MenuRow icon="shield-checkmark-outline" label="Bảo mật" />
+          <MenuRow icon="lock-closed-outline" label="Bảo mật" />
           <MenuRow icon="information-circle-outline" label="Giới thiệu" subtitle="v1.0.0" last />
         </View>
 
         <TouchableOpacity
-          className="bg-surfaceAlt mx-5 flex-row items-center justify-center p-4 rounded-2xl mb-10"
+          className="bg-surface mx-6 flex-row items-center justify-center py-4 rounded-lg mb-10"
           onPress={handleLogout}
+          activeOpacity={0.85}
         >
-          <Ionicons name="log-out-outline" size={22} color={COLORS.error} />
-          <Text className="text-error font-semibold text-base ml-2">Đăng xuất</Text>
+          <Ionicons name="log-out-outline" size={18} color={COLORS.error} />
+          <Text className="text-error font-semibold text-[15px] ml-2">Đăng xuất</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Edit name modal */}
       <Modal visible={editingName} transparent animationType="fade" onRequestClose={() => setEditingName(false)}>
-        <View className="flex-1 bg-black/60 justify-center items-center px-6">
-          <View className="bg-surface w-full rounded-2xl p-6">
-            <Text className="text-white text-lg font-bold mb-4">Sửa tên hiển thị</Text>
-            <View className="bg-card rounded-xl px-4 py-3 mb-5 border border-border">
+        <View className="flex-1 bg-black/40 justify-center items-center px-6">
+          <View className="bg-background w-full rounded-lg p-5">
+            <Text
+              className="text-text font-semibold mb-4"
+              style={{ fontSize: 17, letterSpacing: -0.374 }}
+            >
+              Sửa tên hiển thị
+            </Text>
+            <View className="bg-surface rounded-md px-4 h-12 justify-center mb-5">
               <TextInput
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="Nhập tên mới..."
-                placeholderTextColor={COLORS.textMuted}
-                style={{ color: COLORS.text, fontSize: 15 }}
+                placeholderTextColor={COLORS.textMuted as string}
+                style={{ color: COLORS.text, fontSize: 17 }}
                 maxLength={50}
                 autoFocus
               />
@@ -182,17 +195,21 @@ export const ProfileScreen = () => {
             <View className="flex-row">
               <TouchableOpacity
                 onPress={() => setEditingName(false)}
-                className="flex-1 bg-surfaceAlt py-3 rounded-xl items-center mr-2"
+                className="flex-1 bg-surface rounded-xs h-11 items-center justify-center mr-2"
                 disabled={saving}
+                activeOpacity={0.85}
               >
-                <Text className="text-textSecondary font-semibold">Huỷ</Text>
+                <Text className="text-text font-semibold text-[15px]">Huỷ</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveName}
-                className="flex-1 bg-primary py-3 rounded-xl items-center ml-2"
+                className="flex-1 bg-primary rounded-xs h-11 items-center justify-center ml-2"
                 disabled={saving}
+                activeOpacity={0.85}
               >
-                <Text className="text-white font-semibold">{saving ? 'Đang lưu...' : 'Lưu'}</Text>
+                <Text className="text-white font-semibold text-[15px]">
+                  {saving ? 'Đang lưu...' : 'Lưu'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -201,6 +218,19 @@ export const ProfileScreen = () => {
     </SafeAreaView>
   );
 };
+
+const StatCard = ({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string | number; label: string }) => (
+  <View className="flex-1 bg-surface rounded-lg p-4 items-center">
+    <Ionicons name={icon} size={20} color={COLORS.primary} />
+    <Text
+      className="text-text font-semibold mt-2"
+      style={{ fontSize: 17, letterSpacing: -0.374 }}
+    >
+      {value}
+    </Text>
+    <Text className="text-textMuted text-[12px] mt-0.5">{label}</Text>
+  </View>
+);
 
 const MenuRow = ({
   icon,
@@ -218,10 +248,11 @@ const MenuRow = ({
   <TouchableOpacity
     className={`flex-row items-center px-4 py-4 ${last ? '' : 'border-b border-border'}`}
     onPress={onPress ?? (() => Alert.alert(label, 'Tính năng sẽ được cập nhật trong phiên bản sau.'))}
+    activeOpacity={0.6}
   >
-    <Ionicons name={icon} size={22} color={COLORS.textSecondary} />
-    <Text className="text-white text-base ml-3 flex-1">{label}</Text>
-    {subtitle && <Text className="text-textMuted text-xs mr-2">{subtitle}</Text>}
-    <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+    <Ionicons name={icon} size={20} color={COLORS.textSecondary as string} />
+    <Text className="text-text text-[15px] ml-3 flex-1">{label}</Text>
+    {subtitle && <Text className="text-textMuted text-[12px] mr-2">{subtitle}</Text>}
+    <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted as string} />
   </TouchableOpacity>
 );

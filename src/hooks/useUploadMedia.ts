@@ -107,10 +107,25 @@ export const useUploadMedia = () => {
       if (totalItems > 0) {
         const current = useFolderStore.getState().folders.find((f) => f.id === folderId);
         if (current) {
-          updateFolder(folderId, {
+          const updates: Record<string, any> = {
             mediaCount: (current.mediaCount || 0) + totalItems,
             totalSize: (current.totalSize || 0) + totalUploadedBytes,
-          });
+          };
+          // Folder chưa có cover → dùng URL ảnh đầu tiên làm thumbnail
+          if (!current.coverUrl) {
+            const firstImageItem = useFolderStore
+              .getState()
+              .mediaItems.find((m) => m.folderId === folderId && m.type === 'image');
+            if (firstImageItem?.url) {
+              updates.coverUrl = firstImageItem.url;
+              try {
+                await FirestoreService.updateFolder(folderId, { coverUrl: firstImageItem.url });
+              } catch (e) {
+                console.warn('Không set được coverUrl:', e);
+              }
+            }
+          }
+          updateFolder(folderId, updates);
         }
         try {
           await FirestoreService.incrementUserStorage(user.uid, totalUploadedBytes);

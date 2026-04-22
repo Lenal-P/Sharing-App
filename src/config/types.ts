@@ -23,6 +23,8 @@ export interface MediaItem {
 export interface Folder {
   id: string;
   ownerId: string;
+  /** Denormalized tên user chủ thư mục — để filter/search feed công khai */
+  ownerDisplayName?: string;
   name: string;
   description?: string;
   coverUrl?: string;
@@ -33,6 +35,10 @@ export interface Folder {
   isPublic: boolean;
   sharedWith: string[];
   shareCode?: string;
+  /** SHA-256 hash của password — chỉ bắt buộc với folder private có mật khẩu */
+  passwordHash?: string;
+  /** Danh sách uid đã join (có thể xem + upload). Owner không cần trong list. */
+  members?: string[];
   createdAt: Date;
   updatedAt: Date;
   tags?: string[];

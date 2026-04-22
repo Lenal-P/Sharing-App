@@ -3,15 +3,22 @@ import {
   doc,
   setDoc,
   getDocs,
+  getDoc,
   query,
   where,
   deleteDoc,
   updateDoc,
   increment,
   writeBatch,
+  arrayUnion,
 } from 'firebase/firestore';
+import * as Crypto from 'expo-crypto';
 import { db } from '../config/firebase';
-import { Folder, MediaItem } from '../config/types';
+import { Folder, MediaItem, UserProfile } from '../config/types';
+
+const hashPassword = async (password: string): Promise<string> => {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password);
+};
 
 const stripUndefined = <T extends Record<string, any>>(obj: T): Partial<T> => {
   const out: Record<string, any> = {};
@@ -54,14 +61,22 @@ const generateShareCode = () => {
 
 export const FirestoreService = {
   // --- Folders ---
-  async createFolder(folder: Omit<Folder, 'id' | 'createdAt' | 'updatedAt' | 'shareCode'>): Promise<Folder> {
+  async createFolder(
+    folder: Omit<Folder, 'id' | 'createdAt' | 'updatedAt' | 'shareCode' | 'passwordHash'>,
+    password?: string
+  ): Promise<Folder> {
     const folderRef = doc(collection(db, 'folders'));
     const now = new Date();
+
+    // Luôn sinh shareCode để có thể join bất kể public hay private
+    const passwordHash = password ? await hashPassword(password) : undefined;
 
     const newFolder: Folder = {
       ...folder,
       id: folderRef.id,
-      shareCode: folder.isPublic ? generateShareCode() : undefined,
+      shareCode: generateShareCode(),
+      passwordHash,
+      members: folder.members ?? [],
       createdAt: now,
       updatedAt: now,
     };
@@ -98,6 +113,69 @@ export const FirestoreService = {
     );
   },
 
+  /** Tất cả user trong app — cho invite picker. Exclude current user. */
+  async getAllUsers(excludeUid?: string): Promise<UserProfile[]> {
+    const usersRef = collection(db, 'users');
+    const snapshot = await withTimeout(getDocs(usersRef), FIREBASE_TIMEOUT_MS, 'Tải danh sách user');
+    return snapshot.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          ...data,
+          createdAt: new Date(data.createdAt),
+        } as UserProfile;
+      })
+      .filter((u) => (excludeUid ? u.uid !== excludeUid : true))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'vi'));
+  },
+
+  /** Folders mà user được mời vào (uid in members), loại folder mà user là owner. */
+  async getSharedFoldersForUser(userId: string): Promise<Folder[]> {
+    const foldersRef = collection(db, 'folders');
+    const q = query(foldersRef, where('members', 'array-contains', userId));
+    const snapshot = await withTimeout(getDocs(q), FIREBASE_TIMEOUT_MS, 'Tải thư mục được chia sẻ');
+    return snapshot.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          ...data,
+          createdAt: new Date(data.createdAt),
+          updatedAt: new Date(data.updatedAt),
+        } as Folder;
+      })
+      .filter((f) => f.ownerId !== userId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  },
+
+  /** Add nhiều uids vào members cùng lúc */
+  async addMembers(folderId: string, userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    const folderRef = doc(db, 'folders', folderId);
+    await withTimeout(
+      updateDoc(folderRef, {
+        members: arrayUnion(...userIds),
+        updatedAt: new Date().toISOString(),
+      }),
+      FIREBASE_TIMEOUT_MS,
+      'Mời thành viên'
+    );
+  },
+
+  /** Kick 1 member khỏi folder (owner mới gọi) */
+  async removeMember(folderId: string, userId: string): Promise<void> {
+    const folderRef = doc(db, 'folders', folderId);
+    const snap = await getDoc(folderRef);
+    const currentMembers = (snap.data()?.members as string[] | undefined) ?? [];
+    await withTimeout(
+      updateDoc(folderRef, {
+        members: currentMembers.filter((m) => m !== userId),
+        updatedAt: new Date().toISOString(),
+      }),
+      FIREBASE_TIMEOUT_MS,
+      'Xoá thành viên'
+    );
+  },
+
   async getFoldersByUser(userId: string): Promise<Folder[]> {
     const foldersRef = collection(db, 'folders');
     // where + orderBy đòi composite index. Lấy rồi sort client-side để tránh
@@ -116,23 +194,51 @@ export const FirestoreService = {
     return list.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   },
 
-  async toggleFolderShare(folderId: string, makePublic: boolean): Promise<{ isPublic: boolean; shareCode?: string }> {
+  async toggleFolderShare(folderId: string, makePublic: boolean): Promise<{ isPublic: boolean; shareCode: string }> {
     const folderRef = doc(db, 'folders', folderId);
-    if (makePublic) {
-      const shareCode = generateShareCode();
-      await updateDoc(folderRef, {
-        isPublic: true,
-        shareCode,
-        updatedAt: new Date().toISOString(),
-      });
-      return { isPublic: true, shareCode };
-    }
+    const snap = await getDoc(folderRef);
+    const existingCode = (snap.data()?.shareCode as string | undefined) ?? generateShareCode();
+    // ShareCode giữ nguyên trong mọi trường hợp — chỉ đổi isPublic
     await updateDoc(folderRef, {
-      isPublic: false,
-      shareCode: null,
+      isPublic: makePublic,
+      shareCode: existingCode,
       updatedAt: new Date().toISOString(),
     });
-    return { isPublic: false };
+    return { isPublic: makePublic, shareCode: existingCode };
+  },
+
+  /** Kiểm tra password của folder private. Trả true nếu khớp (hoặc folder không có password). */
+  async verifyFolderPassword(folderId: string, password: string): Promise<boolean> {
+    const snap = await getDoc(doc(db, 'folders', folderId));
+    if (!snap.exists()) return false;
+    const data = snap.data();
+    if (!data.passwordHash) return true;
+    const inputHash = await hashPassword(password);
+    return inputHash === data.passwordHash;
+  },
+
+  /** Add user vào members[] của folder (sau khi verify password hoặc folder public). */
+  async joinFolder(folderId: string, userId: string): Promise<void> {
+    const folderRef = doc(db, 'folders', folderId);
+    await withTimeout(
+      updateDoc(folderRef, {
+        members: arrayUnion(userId),
+        updatedAt: new Date().toISOString(),
+      }),
+      FIREBASE_TIMEOUT_MS,
+      'Join thư mục'
+    );
+  },
+
+  async getFolderById(folderId: string): Promise<Folder | null> {
+    const snap = await getDoc(doc(db, 'folders', folderId));
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    return {
+      ...data,
+      createdAt: new Date(data.createdAt),
+      updatedAt: new Date(data.updatedAt),
+    } as Folder;
   },
 
   async deleteFolder(folderId: string, userId: string): Promise<void> {
@@ -236,9 +342,29 @@ export const FirestoreService = {
     return list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   },
 
+  async getPublicFolders(excludeOwnerId?: string, limitCount = 50): Promise<Folder[]> {
+    const foldersRef = collection(db, 'folders');
+    const q = query(foldersRef, where('isPublic', '==', true));
+    const snapshot = await withTimeout(getDocs(q), FIREBASE_TIMEOUT_MS, 'Tải thư mục công khai');
+    const list = snapshot.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          ...data,
+          createdAt: new Date(data.createdAt),
+          updatedAt: new Date(data.updatedAt),
+        } as Folder;
+      })
+      .filter((f) => (excludeOwnerId ? f.ownerId !== excludeOwnerId : true));
+    return list
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, limitCount);
+  },
+
   async getFolderByShareCode(code: string): Promise<Folder | null> {
     const foldersRef = collection(db, 'folders');
-    const q = query(foldersRef, where('shareCode', '==', code), where('isPublic', '==', true));
+    // Tìm theo shareCode bất kể public/private — private sẽ cần password ở UI
+    const q = query(foldersRef, where('shareCode', '==', code));
     const snapshot = await withTimeout(getDocs(q), FIREBASE_TIMEOUT_MS, 'Tìm thư mục');
     if (snapshot.empty) return null;
     const data = snapshot.docs[0].data();

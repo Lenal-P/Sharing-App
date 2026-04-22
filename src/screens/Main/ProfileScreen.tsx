@@ -190,6 +190,9 @@ export const ProfileScreen = () => {
                 style={{ color: COLORS.text, fontSize: 17 }}
                 maxLength={50}
                 autoFocus
+                autoCorrect={false}
+                autoComplete="off"
+                spellCheck={false}
               />
             </View>
             <View className="flex-row">

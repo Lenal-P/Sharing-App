@@ -46,6 +46,9 @@ export const Input = ({
           className="flex-1 text-text text-[16px] h-full"
           placeholderTextColor={COLORS.textSecondary}
           secureTextEntry={isPassword && !showPassword}
+          autoCorrect={false}
+          autoComplete="off"
+          spellCheck={false}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           {...props}

@@ -44,20 +44,14 @@ export const MainTabNavigator = () => {
               <View
                 style={{
                   backgroundColor: COLORS.primary,
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  marginBottom: 12,
-                  shadowColor: COLORS.primary,
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.22,
-                  shadowRadius: 12,
-                  elevation: 6,
                 }}
               >
-                <Ionicons name="add" size={28} color="#fff" />
+                <Ionicons name="add" size={26} color="#fff" />
               </View>
             );
           }

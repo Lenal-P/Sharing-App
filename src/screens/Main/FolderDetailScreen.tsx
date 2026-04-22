@@ -11,16 +11,18 @@ import {
   Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList, Folder, MediaItem } from '../../config/types';
 import { COLORS } from '../../config/constants';
 import { useFolderStore } from '../../store/folderStore';
+import { useAuthStore } from '../../store/authStore';
 import { FirestoreService } from '../../services/firestore.service';
 import { useUploadMedia } from '../../hooks/useUploadMedia';
 import { formatBytes } from '../../utils/formatters';
+import { InviteMembersModal } from '../../components/InviteMembersModal';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'FolderDetail'>;
 type RouteType = RouteProp<HomeStackParamList, 'FolderDetail'>;
@@ -42,7 +44,9 @@ export const FolderDetailScreen = () => {
     updateFolder,
     uploadProgress,
   } = useFolderStore();
+  const { user } = useAuthStore();
   const { pickFromLibrary, pickFromCamera, uploadAssets, isUploading } = useUploadMedia();
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const activeUploads = uploadProgress.filter(
     (p) => p.status === 'compressing' || p.status === 'uploading'
@@ -117,10 +121,16 @@ export const FolderDetailScreen = () => {
     }
   };
 
+  // React Navigation cảnh báo non-serializable nếu param chứa Date. Convert sang ISO string.
+  const serializableItems = mediaItems.map((m) => ({
+    ...m,
+    createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : m.createdAt,
+  })) as unknown as MediaItem[];
+
   const renderItem = ({ item, index }: { item: MediaItem; index: number }) => (
     <TouchableOpacity
       style={{ width: ITEM_SIZE, height: ITEM_SIZE, margin: 2 }}
-      onPress={() => navigation.navigate('MediaViewer', { mediaItems, startIndex: index })}
+      onPress={() => navigation.navigate('MediaViewer', { mediaItems: serializableItems, startIndex: index })}
       activeOpacity={0.85}
     >
       <Image
@@ -166,6 +176,15 @@ export const FolderDetailScreen = () => {
             {folder.mediaCount} file · {formatBytes(folder.totalSize)}
           </Text>
         </View>
+        {user && folder.ownerId === user.uid && (
+          <TouchableOpacity
+            onPress={() => setInviteOpen(true)}
+            className="w-9 h-9 rounded-full items-center justify-center mr-1.5 bg-surface"
+            activeOpacity={0.85}
+          >
+            <Ionicons name="person-add-outline" size={16} color={COLORS.primary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           onPress={() => navigation.navigate('CreateFolder', { mode: 'edit', folderId: folder.id })}
           className="w-9 h-9 rounded-full items-center justify-center mr-1.5 bg-surface"
@@ -243,6 +262,21 @@ export const FolderDetailScreen = () => {
         </View>
       ) : null}
 
+      {/* Member count chip */}
+      {folder.members && folder.members.length > 0 && (
+        <View className="mx-6 mt-3 flex-row items-center">
+          <View className="bg-surface flex-row items-center px-3 py-1.5 rounded-pill">
+            <Ionicons name="people" size={12} color={COLORS.primary} />
+            <Text
+              className="text-text font-semibold ml-1"
+              style={{ fontSize: 12, letterSpacing: 0.3 }}
+            >
+              {folder.members.length} thành viên
+            </Text>
+          </View>
+        </View>
+      )}
+
       {folder.shareCode && (
         <View className="mx-6 mt-3 flex-row items-center">
           <View className="bg-surface flex-row items-center px-3 py-1.5 rounded-pill">
@@ -302,6 +336,22 @@ export const FolderDetailScreen = () => {
               tintColor={COLORS.primary}
             />
           }
+        />
+      )}
+
+      {user && folder.ownerId === user.uid && (
+        <InviteMembersModal
+          visible={inviteOpen}
+          existingMemberIds={folder.members ?? []}
+          ownerId={folder.ownerId}
+          currentUid={user.uid}
+          onClose={() => setInviteOpen(false)}
+          onInvite={async (uids) => {
+            await FirestoreService.addMembers(folder.id, uids);
+            updateFolder(folder.id, {
+              members: [...(folder.members ?? []), ...uids],
+            });
+          }}
         />
       )}
     </SafeAreaView>

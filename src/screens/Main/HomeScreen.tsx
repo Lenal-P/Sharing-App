@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../config/constants';
 import { useFolderStore } from '../../store/folderStore';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { FirestoreService } from '../../services/firestore.service';
 import { useNavigation } from '@react-navigation/native';
@@ -12,8 +12,40 @@ import { HomeStackParamList, Folder } from '../../config/types';
 import { formatBytes } from '../../utils/formatters';
 import { PressableScale } from '../../components/PressableScale';
 import { FadeInView } from '../../components/FadeInView';
+import { SearchBar } from '../../components/SearchBar';
+import { FilterChips } from '../../components/FilterChips';
+import { SortSheet, SortOption } from '../../components/SortSheet';
 import { useCountUp } from '../../hooks/useCountUp';
 import * as Haptics from 'expo-haptics';
+
+type VisibilityFilter = 'all' | 'public' | 'private';
+type SortKey = 'updated' | 'created' | 'name' | 'size' | 'count';
+
+const SORT_OPTIONS: SortOption<SortKey>[] = [
+  { key: 'updated', label: 'Cập nhật gần nhất', icon: 'time-outline' },
+  { key: 'created', label: 'Mới tạo', icon: 'calendar-outline' },
+  { key: 'name', label: 'Tên (A → Z)', icon: 'text-outline' },
+  { key: 'size', label: 'Dung lượng (lớn → nhỏ)', icon: 'server-outline' },
+  { key: 'count', label: 'Nhiều file nhất', icon: 'layers-outline' },
+];
+
+const applySort = (list: Folder[], key: SortKey): Folder[] => {
+  const copy = [...list];
+  switch (key) {
+    case 'updated':
+      return copy.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    case 'created':
+      return copy.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    case 'name':
+      return copy.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    case 'size':
+      return copy.sort((a, b) => b.totalSize - a.totalSize);
+    case 'count':
+      return copy.sort((a, b) => b.mediaCount - a.mediaCount);
+    default:
+      return copy;
+  }
+};
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'FolderList'>;
 
@@ -21,6 +53,29 @@ export const HomeScreen = () => {
   const navigation = useNavigation<Nav>();
   const { user } = useAuthStore();
   const { folders, setFolders, deleteFolder, isLoadingFolders, setLoadingFolders } = useFolderStore();
+
+  const [search, setSearch] = useState('');
+  const [visibility, setVisibility] = useState<VisibilityFilter>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('updated');
+  const [sortOpen, setSortOpen] = useState(false);
+
+  const filteredFolders = useMemo(() => {
+    let list = folders;
+    if (visibility === 'public') list = list.filter((f) => f.isPublic);
+    else if (visibility === 'private') list = list.filter((f) => !f.isPublic);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(
+        (f) =>
+          f.name.toLowerCase().includes(q) ||
+          f.description?.toLowerCase().includes(q)
+      );
+    }
+    return applySort(list, sortKey);
+  }, [folders, visibility, sortKey, search]);
+
+  const publicCount = useMemo(() => folders.filter((f) => f.isPublic).length, [folders]);
+  const privateCount = folders.length - publicCount;
 
   const loadFolders = useCallback(async () => {
     if (!user) return;
@@ -137,22 +192,71 @@ export const HomeScreen = () => {
         </View>
       </FadeInView>
 
-      {/* Section heading */}
+      {/* Search bar */}
+      <FadeInView delay={120}>
+        <View className="px-6 mt-5 mb-3">
+          <SearchBar
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Tìm thư mục..."
+          />
+        </View>
+      </FadeInView>
+
+      {/* Filter chips */}
       <FadeInView delay={160}>
-        <View className="flex-row justify-between items-end px-6 mt-6 mb-3">
+        <View className="mb-3">
+          <FilterChips<VisibilityFilter>
+            value={visibility}
+            onChange={setVisibility}
+            options={[
+              { key: 'all', label: 'Tất cả', count: folders.length },
+              { key: 'public', label: 'Công khai', count: publicCount },
+              { key: 'private', label: 'Riêng tư', count: privateCount },
+            ]}
+          />
+        </View>
+      </FadeInView>
+
+      {/* Section heading with sort */}
+      <FadeInView delay={200}>
+        <View className="flex-row justify-between items-center px-6 mt-2 mb-3">
           <Text
             className="text-text"
             style={{
-              fontSize: 22,
-              lineHeight: 28,
+              fontSize: 20,
+              lineHeight: 24,
               letterSpacing: -0.3,
               fontWeight: '800',
               textTransform: 'uppercase',
             }}
           >
-            Thư mục của bạn
+            {filteredFolders.length} thư mục
           </Text>
-          <Text className="text-textSecondary text-[12px]">Giữ để sửa/xoá</Text>
+          <PressableScale
+            onPress={() => setSortOpen(true)}
+            scaleTo={0.95}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              backgroundColor: COLORS.surface,
+              borderRadius: 30,
+            }}
+          >
+            <Ionicons name="swap-vertical" size={14} color={COLORS.text} />
+            <Text
+              style={{
+                marginLeft: 4,
+                fontSize: 12,
+                fontWeight: '700',
+                color: COLORS.text,
+              }}
+            >
+              {SORT_OPTIONS.find((s) => s.key === sortKey)?.label.split(' ')[0] ?? 'Sắp xếp'}
+            </Text>
+          </PressableScale>
         </View>
       </FadeInView>
 
@@ -164,9 +268,11 @@ export const HomeScreen = () => {
           </View>
         ) : folders.length === 0 ? (
           <EmptyState onCreate={() => navigation.navigate('CreateFolder')} />
+        ) : filteredFolders.length === 0 ? (
+          <NoMatch onClearFilters={() => { setSearch(''); setVisibility('all'); }} />
         ) : (
           <FlatList
-            data={folders}
+            data={filteredFolders}
             keyExtractor={(item) => item.id}
             numColumns={2}
             columnWrapperStyle={{ justifyContent: 'space-between' }}
@@ -189,9 +295,54 @@ export const HomeScreen = () => {
           />
         )}
       </View>
+
+      <SortSheet<SortKey>
+        visible={sortOpen}
+        options={SORT_OPTIONS}
+        value={sortKey}
+        onSelect={setSortKey}
+        onClose={() => setSortOpen(false)}
+      />
     </SafeAreaView>
   );
 };
+
+const NoMatch = ({ onClearFilters }: { onClearFilters: () => void }) => (
+  <View className="flex-1 items-center justify-center pb-20 px-10">
+    <Ionicons name="search-outline" size={36} color={COLORS.textMuted} />
+    <Text
+      className="text-text mt-3 mb-1"
+      style={{ fontSize: 17, fontWeight: '900', textTransform: 'uppercase', letterSpacing: -0.2 }}
+    >
+      Không có kết quả
+    </Text>
+    <Text className="text-textSecondary text-center text-[14px] mb-4">
+      Thử đổi từ khoá hoặc bỏ bộ lọc.
+    </Text>
+    <PressableScale
+      onPress={onClearFilters}
+      scaleTo={0.96}
+      style={{
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 18,
+        paddingVertical: 8,
+        borderRadius: 30,
+      }}
+    >
+      <Text
+        style={{
+          color: '#fff',
+          fontSize: 13,
+          fontWeight: '700',
+          letterSpacing: 0.3,
+          textTransform: 'uppercase',
+        }}
+      >
+        Xoá bộ lọc
+      </Text>
+    </PressableScale>
+  </View>
+);
 
 const HeroStatBox = ({ value, label }: { value: number | string; label: string }) => {
   const isNumber = typeof value === 'number';

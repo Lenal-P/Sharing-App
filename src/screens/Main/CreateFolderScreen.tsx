@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../../config/types';
@@ -49,7 +50,11 @@ export const CreateFolderScreen = () => {
   const [isPublic, setIsPublic] = useState(editTarget?.isPublic ?? false);
   const [selectedIcon, setSelectedIcon] = useState<string>(editTarget?.iconName ?? 'folder');
   const [selectedColor, setSelectedColor] = useState<string>(editTarget?.color ?? FOLDER_COLORS[0]);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const hasExistingPassword = !!editTarget?.passwordHash;
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -60,33 +65,51 @@ export const CreateFolderScreen = () => {
 
     try {
       setIsLoading(true);
+      // Folder private có password → hash trước khi lưu
+      // Folder public → xoá password nếu có
+      let passwordHashPatch: string | null | undefined = undefined;
+      if (!isPublic && password.trim()) {
+        passwordHashPatch = await Crypto.digestStringAsync(
+          Crypto.CryptoDigestAlgorithm.SHA256,
+          password.trim()
+        );
+      } else if (isPublic) {
+        passwordHashPatch = null; // xoá hash khi chuyển public
+      }
+
       if (isEdit && editTarget) {
-        await FirestoreService.updateFolder(editTarget.id, {
+        const patch: any = {
           name: name.trim(),
           description: description.trim() || undefined,
           isPublic,
           iconName: selectedIcon,
           color: selectedColor,
-        });
+        };
+        if (passwordHashPatch !== undefined) {
+          patch.passwordHash = passwordHashPatch === null ? null : passwordHashPatch;
+        }
+        await FirestoreService.updateFolder(editTarget.id, patch);
         updateFolder(editTarget.id, {
-          name: name.trim(),
-          description: description.trim() || undefined,
-          isPublic,
-          iconName: selectedIcon,
-          color: selectedColor,
+          ...patch,
+          passwordHash: passwordHashPatch === null ? undefined : passwordHashPatch,
         });
       } else {
-        const newFolder = await FirestoreService.createFolder({
-          ownerId: user.uid,
-          name: name.trim(),
-          description: description.trim() || undefined,
-          iconName: selectedIcon,
-          color: selectedColor,
-          mediaCount: 0,
-          totalSize: 0,
-          isPublic,
-          sharedWith: [],
-        });
+        const newFolder = await FirestoreService.createFolder(
+          {
+            ownerId: user.uid,
+            ownerDisplayName: user.displayName,
+            name: name.trim(),
+            description: description.trim() || undefined,
+            iconName: selectedIcon,
+            color: selectedColor,
+            mediaCount: 0,
+            totalSize: 0,
+            isPublic,
+            sharedWith: [],
+            members: [],
+          },
+          !isPublic && password.trim() ? password.trim() : undefined
+        );
         addFolder(newFolder);
       }
       navigation.goBack();
@@ -210,6 +233,9 @@ export const CreateFolderScreen = () => {
               placeholderTextColor={COLORS.textMuted as string}
               style={{ color: COLORS.text, fontSize: 17 }}
               maxLength={50}
+              autoCorrect={false}
+              autoComplete="off"
+              spellCheck={false}
             />
           </View>
 
@@ -230,10 +256,13 @@ export const CreateFolderScreen = () => {
               numberOfLines={3}
               maxLength={200}
               textAlignVertical="top"
+              autoCorrect={false}
+              autoComplete="off"
+              spellCheck={false}
             />
           </View>
 
-          <View className="bg-surface rounded-lg px-4 py-4 flex-row items-center justify-between mb-10">
+          <View className="bg-surface rounded-lg px-4 py-4 flex-row items-center justify-between mb-5">
             <View className="flex-row items-center flex-1">
               <Ionicons
                 name={isPublic ? 'globe-outline' : 'lock-closed-outline'}
@@ -245,7 +274,9 @@ export const CreateFolderScreen = () => {
                   {isPublic ? 'Công khai' : 'Riêng tư'}
                 </Text>
                 <Text className="text-textMuted text-[12px] mt-0.5">
-                  {isPublic ? 'Ai có mã chia sẻ đều có thể xem' : 'Chỉ bạn và người được chia sẻ'}
+                  {isPublic
+                    ? 'Ai cũng thấy trong Feed công khai'
+                    : 'Phải nhập mã (+ mật khẩu nếu có) để join'}
                 </Text>
               </View>
             </View>
@@ -256,6 +287,51 @@ export const CreateFolderScreen = () => {
               thumbColor={'#fff'}
             />
           </View>
+
+          {/* Password field — chỉ hiện khi folder private */}
+          {!isPublic && (
+            <View className="mb-8">
+              <Text
+                className="text-textMuted text-[12px] font-medium mb-2"
+                style={{ letterSpacing: 0.3, textTransform: 'uppercase' }}
+              >
+                Mật khẩu join (tuỳ chọn)
+              </Text>
+              <View
+                className="bg-surface flex-row items-center px-4 h-12"
+                style={{ borderRadius: 11 }}
+              >
+                <Ionicons name="key-outline" size={18} color={COLORS.textSecondary} />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder={
+                    hasExistingPassword ? 'Nhập mới để đổi, để trống giữ cũ' : 'Mật khẩu cho người join'
+                  }
+                  placeholderTextColor={COLORS.textMuted as string}
+                  style={{ color: COLORS.text, fontSize: 15, flex: 1, marginLeft: 10 }}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={64}
+                />
+                {password.length > 0 && (
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} hitSlop={8}>
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={18}
+                      color={COLORS.textSecondary}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text className="text-textMuted text-[11px] mt-2 px-1" style={{ lineHeight: 16 }}>
+                Ai join folder sẽ được xem và upload chung. Không đặt mật khẩu = ai biết mã cũng join được.
+              </Text>
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

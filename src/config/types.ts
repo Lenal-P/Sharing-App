@@ -101,4 +101,19 @@ export interface UploadProgress {
   fileName: string;
   progress: number;
   status: 'compressing' | 'uploading' | 'done' | 'error';
+  /** Asset gốc để retry khi lỗi */
+  asset?: any;
+  folderId?: string;
+  errorMessage?: string;
+}
+
+export interface Comment {
+  id: string;
+  folderId: string;
+  itemId: string;
+  authorId: string;
+  authorName: string;
+  authorPhotoURL?: string;
+  text: string;
+  createdAt: Date;
 }

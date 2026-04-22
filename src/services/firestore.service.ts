@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import * as Crypto from 'expo-crypto';
 import { db } from '../config/firebase';
-import { Folder, MediaItem, UserProfile } from '../config/types';
+import { Folder, MediaItem, UserProfile, Comment } from '../config/types';
 
 const hashPassword = async (password: string): Promise<string> => {
   return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password);
@@ -111,6 +111,24 @@ export const FirestoreService = {
       FIREBASE_TIMEOUT_MS,
       'Sửa thư mục'
     );
+  },
+
+  /** Lấy profile theo danh sách uid — cho Members modal */
+  async getUsersByIds(uids: string[]): Promise<UserProfile[]> {
+    if (uids.length === 0) return [];
+    // Firestore where-in giới hạn 30 uid/batch → chunk
+    const chunks: string[][] = [];
+    for (let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+    const all: UserProfile[] = [];
+    for (const chunk of chunks) {
+      const q = query(collection(db, 'users'), where('uid', 'in', chunk));
+      const snap = await withTimeout(getDocs(q), FIREBASE_TIMEOUT_MS, 'Tải thành viên');
+      for (const d of snap.docs) {
+        const data = d.data();
+        all.push({ ...data, createdAt: new Date(data.createdAt) } as UserProfile);
+      }
+    }
+    return all.sort((a, b) => a.displayName.localeCompare(b.displayName, 'vi'));
   },
 
   /** Tất cả user trong app — cho invite picker. Exclude current user. */
@@ -286,6 +304,65 @@ export const FirestoreService = {
       updateDoc(userRef, { storageUsed: increment(-(item.fileSize || 0)) }),
       FIREBASE_TIMEOUT_MS,
       'Cập nhật user'
+    );
+  },
+
+  // --- Comments ---
+  async getComments(folderId: string, itemId: string): Promise<Comment[]> {
+    const ref = collection(db, `folders/${folderId}/mediaItems/${itemId}/comments`);
+    const snap = await withTimeout(getDocs(ref), FIREBASE_TIMEOUT_MS, 'Tải bình luận');
+    return snap.docs
+      .map((d) => {
+        const data = d.data();
+        return { ...data, createdAt: new Date(data.createdAt) } as Comment;
+      })
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  },
+
+  async addComment(
+    folderId: string,
+    itemId: string,
+    author: { uid: string; displayName: string; photoURL?: string },
+    text: string
+  ): Promise<Comment> {
+    const ref = doc(collection(db, `folders/${folderId}/mediaItems/${itemId}/comments`));
+    const now = new Date();
+    const comment: Comment = {
+      id: ref.id,
+      folderId,
+      itemId,
+      authorId: author.uid,
+      authorName: author.displayName,
+      authorPhotoURL: author.photoURL,
+      text,
+      createdAt: now,
+    };
+    await withTimeout(
+      setDoc(ref, stripUndefined({ ...comment, createdAt: now.toISOString() })),
+      FIREBASE_TIMEOUT_MS,
+      'Đăng bình luận'
+    );
+    return comment;
+  },
+
+  async deleteComment(folderId: string, itemId: string, commentId: string): Promise<void> {
+    await withTimeout(
+      deleteDoc(doc(db, `folders/${folderId}/mediaItems/${itemId}/comments/${commentId}`)),
+      FIREBASE_TIMEOUT_MS,
+      'Xoá bình luận'
+    );
+  },
+
+  async updateMediaItem(
+    folderId: string,
+    itemId: string,
+    patch: Partial<Omit<MediaItem, 'id' | 'folderId' | 'ownerId' | 'createdAt'>>
+  ): Promise<void> {
+    const itemRef = doc(db, `folders/${folderId}/mediaItems/${itemId}`);
+    await withTimeout(
+      updateDoc(itemRef, stripUndefined(patch)),
+      FIREBASE_TIMEOUT_MS,
+      'Sửa media'
     );
   },
 

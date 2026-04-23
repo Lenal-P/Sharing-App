@@ -390,8 +390,28 @@ export const MediaViewerScreen = () => {
           activeOpacity={1}
           onPress={() => setShowInfo(false)}
         >
-          <View className="bg-surface rounded-t-3xl p-6">
-            <Text className="text-white text-lg font-bold mb-4">Thông tin media</Text>
+          <View className="bg-background rounded-t-3xl p-6 pb-10">
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                backgroundColor: COLORS.border,
+                borderRadius: 2,
+                alignSelf: 'center',
+                marginBottom: 16,
+              }}
+            />
+            <Text
+              className="text-text mb-5"
+              style={{
+                fontSize: 18,
+                fontWeight: '900',
+                letterSpacing: -0.3,
+                textTransform: 'uppercase',
+              }}
+            >
+              Thông tin media
+            </Text>
             <InfoRow label="Tên file" value={currentItem?.fileName || ''} />
             <InfoRow label="Loại" value={currentItem?.type === 'video' ? 'Video' : 'Ảnh'} />
             <InfoRow label="Kích thước" value={formatBytes(currentItem?.fileSize || 0)} />
@@ -428,8 +448,17 @@ export const MediaViewerScreen = () => {
 
 const InfoRow = ({ label, value }: { label: string; value: string }) => (
   <View className="flex-row justify-between py-3 border-b border-border">
-    <Text className="text-textSecondary">{label}</Text>
-    <Text className="text-white font-medium" numberOfLines={1} style={{ maxWidth: '60%' }}>
+    <Text
+      className="text-textSecondary text-[13px] font-medium"
+      style={{ letterSpacing: 0.2 }}
+    >
+      {label}
+    </Text>
+    <Text
+      className="text-text font-semibold text-[14px]"
+      numberOfLines={1}
+      style={{ maxWidth: '60%' }}
+    >
       {value}
     </Text>
   </View>
